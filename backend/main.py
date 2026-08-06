@@ -68,8 +68,10 @@ app.include_router(hospital_v1_router, prefix="/api/v1")
 app.include_router(admin_v1_router, prefix="/api/v1")
 app.include_router(hms_v1_router, prefix="/api/v1")
 from app.api.v1.sos_routing_routes import router as sos_routing_router
-app.include_router(sos_routing_router, prefix="/api/v1")
+from app.api.v1.helper_routes import router as helper_routes_router
 
+app.include_router(sos_routing_router, prefix="/api/v1")
+app.include_router(helper_routes_router, prefix="/api/v1/auth")
 
 @app.get("/")
 def root():

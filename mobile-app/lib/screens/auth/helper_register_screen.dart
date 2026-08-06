@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/preferences_service.dart';
+import '../../services/api_service.dart';
 import '../helper/helper_dashboard_screen.dart';
 import 'unified_login_screen.dart';
 
@@ -15,6 +16,8 @@ class _HelperRegisterScreenState extends State<HelperRegisterScreen> {
       TextEditingController(text: 'Anjali Devi');
   final TextEditingController _phoneController =
       TextEditingController(text: '+91 98490 12345');
+  final TextEditingController _passwordController =
+      TextEditingController(text: 'Helper123!');
   final TextEditingController _locationController =
       TextEditingController(text: 'Banjara Hills Sector 4, Hyderabad');
   final TextEditingController _certIdController =
@@ -29,6 +32,7 @@ class _HelperRegisterScreenState extends State<HelperRegisterScreen> {
   bool _isUploadingCert = false;
   String _uploadedFileName = 'medical_asha_certification_2026.pdf';
   bool _isLoading = false;
+  bool _obscurePassword = true;
 
   final List<String> _helperRoles = [
     'ASHA Community Health Worker',
@@ -69,7 +73,7 @@ class _HelperRegisterScreenState extends State<HelperRegisterScreen> {
     });
   }
 
-  void _handleRegister() {
+  Future<void> _handleRegister() async {
     if (!_liveLocationAccess) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -83,15 +87,32 @@ class _HelperRegisterScreenState extends State<HelperRegisterScreen> {
     }
 
     setState(() => _isLoading = true);
-    final prefs = PreferencesService();
-    prefs.setHelperLiveLocation(true);
-    prefs.login(
-      role: 'helper',
-      userId: _phoneController.text.trim(),
-      userName: _nameController.text.trim(),
-    );
 
-    Future.delayed(const Duration(milliseconds: 700), () {
+    try {
+      List<String> skills = [];
+      if (_cprSkill) skills.add("CPR");
+      if (_bleedingSkill) skills.add("Bleeding Control");
+      if (_traumaSkill) skills.add("Trauma Response");
+      if (_chokingSkill) skills.add("Choking Rescue");
+
+      await ApiService.registerHelper(
+        name: _nameController.text.trim(),
+        phone: _phoneController.text.trim(),
+        password: _passwordController.text.trim(),
+        roleType: _selectedRole,
+        location: _locationController.text.trim(),
+        certificateId: _certIdController.text.trim(),
+        skills: skills,
+      );
+
+      final prefs = PreferencesService();
+      prefs.setHelperLiveLocation(true);
+      await prefs.login(
+        role: 'helper',
+        userId: _phoneController.text.trim(),
+        userName: _nameController.text.trim(),
+      );
+
       if (mounted) {
         setState(() => _isLoading = false);
         Navigator.of(context).pushAndRemoveUntil(
@@ -104,7 +125,17 @@ class _HelperRegisterScreenState extends State<HelperRegisterScreen> {
           (route) => false,
         );
       }
-    });
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString()),
+            backgroundColor: const Color(0xFFDC2626),
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -247,6 +278,40 @@ class _HelperRegisterScreenState extends State<HelperRegisterScreen> {
                   labelText: 'Mobile Number',
                   labelStyle: const TextStyle(color: Color(0xFF94A3B8)),
                   prefixIcon: const Icon(Icons.phone, color: Color(0xFF94A3B8)),
+                  filled: true,
+                  fillColor: const Color(0xFF1E293B),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFF334155)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFF334155)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // Password
+              TextField(
+                controller: _passwordController,
+                obscureText: _obscurePassword,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  labelText: 'Password',
+                  labelStyle: const TextStyle(color: Color(0xFF94A3B8)),
+                  prefixIcon: const Icon(Icons.lock, color: Color(0xFF94A3B8)),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                      color: const Color(0xFF94A3B8),
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _obscurePassword = !_obscurePassword;
+                      });
+                    },
+                  ),
                   filled: true,
                   fillColor: const Color(0xFF1E293B),
                   border: OutlineInputBorder(

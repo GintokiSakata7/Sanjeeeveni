@@ -43,6 +43,7 @@ class User(SQLModel, table=True):
     name: str
     phone: str = Field(unique=True, index=True)
     email: Optional[str] = Field(default=None, unique=True)
+    password_hash: Optional[str] = None
     role: RoleEnum = Field(default=RoleEnum.CITIZEN)
     language: str = Field(default="en-US")
     blood_group: Optional[str] = None
@@ -53,6 +54,8 @@ class CommunityWorker(SQLModel, table=True):
     __tablename__ = "community_workers"
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
     user_id: str = Field(foreign_key="users.id")
+    role_type: Optional[str] = None
+    certificate_id: Optional[str] = None
     skills: str
     current_lat: float
     current_lng: float

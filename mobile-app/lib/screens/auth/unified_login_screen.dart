@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../services/preferences_service.dart';
+import '../../services/api_service.dart';
 import '../../widgets/app_toast.dart';
 import '../doctor/doctor_dashboard_screen.dart';
 import '../driver/driver_dashboard_screen.dart';
@@ -60,51 +61,74 @@ class _UnifiedLoginScreenState extends State<UnifiedLoginScreen> {
   Future<void> _handleLogin() async {
     setState(() => _isLoading = true);
 
-    final prefs = PreferencesService();
-    String roleString;
-    String userName;
-    Widget destination;
+    try {
+      final prefs = PreferencesService();
+      String roleString;
+      String userName;
+      Widget destination;
 
-    switch (_selectedRole) {
-      case UserRole.doctor:
-        roleString = 'doctor';
-        userName = 'Dr. Rajesh Sharma, MD';
-        destination = DoctorDashboardScreen(
-          doctorName: userName,
+      if (_selectedRole == UserRole.helper) {
+        // Use real backend API for Helpers
+        final response = await ApiService.loginHelper(
+          phone: _idController.text.trim(),
+          password: _pwdController.text.trim(),
         );
-        break;
-      case UserRole.driver:
-        roleString = 'driver';
-        userName = 'Suresh Kumar';
-        destination = DriverDashboardScreen(
-          driverName: userName,
-        );
-        break;
-      case UserRole.helper:
+
         roleString = 'helper';
-        userName = 'Anjali Devi (ASHA Worker)';
+        userName = response['name'] ?? 'Helper';
         destination = HelperDashboardScreen(
           helperName: userName,
-          helperLocation: 'Banjara Hills Sector 4, Hyderabad',
+          helperLocation: response['location'] ?? 'Hyderabad',
         );
-        break;
-    }
 
-    // Save session permanently to disk
-    await prefs.login(
-      role: roleString,
-      userId: _idController.text.trim(),
-      userName: userName,
-    );
+      } else {
+        // Keep mock login for Doctor and Driver for now
+        switch (_selectedRole) {
+          case UserRole.doctor:
+            roleString = 'doctor';
+            userName = 'Dr. Rajesh Sharma, MD';
+            destination = DoctorDashboardScreen(
+              doctorName: userName,
+            );
+            break;
+          case UserRole.driver:
+            roleString = 'driver';
+            userName = 'Suresh Kumar';
+            destination = DriverDashboardScreen(
+              driverName: userName,
+            );
+            break;
+          default:
+            throw Exception('Invalid role');
+        }
+      }
 
-    await Future.delayed(const Duration(milliseconds: 400));
-
-    if (mounted) {
-      setState(() => _isLoading = false);
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => destination),
-        (route) => false,
+      // Save session permanently to disk
+      await prefs.login(
+        role: roleString,
+        userId: _idController.text.trim(),
+        userName: userName,
       );
+
+      await Future.delayed(const Duration(milliseconds: 400));
+
+      if (mounted) {
+        setState(() => _isLoading = false);
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => destination),
+          (route) => false,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceAll('Exception: ', '')),
+            backgroundColor: const Color(0xFFDC2626),
+          ),
+        );
+      }
     }
   }
 
