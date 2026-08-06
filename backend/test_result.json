@@ -1,0 +1,73 @@
+{
+  "case_id": "AERO-AUD-20260807-8913",
+  "created_at": "2026-08-07 01:02:40",
+  "input_text": "అత్యవసర పరిస్తితులో సరేన సమేయల్లో సరేన నిర్నేయం తిస్కోవడం చాలా ముఖ్యం. ప్రమాదాం జరిగినప్పుడు మొదటా బాధితుడి పరిస్తితిని పరిసిలించాలి స్వాసతిస్కుంటున్నాడా, పల్సుందా, రక్తస్రావం జరుగుతుందా వంటి అంసాలను గమనించాలి అవసరం ఐతే వెంటనే CPR ప్రారంభించి అత్యవసర వాయ్ద్య సేవలకు సమాచారం ఇవాలి ప్రసాంతంగా ఉండి భయపడకుండా చరియలు తిస్కోడం వల్లా ప్రాణాలను కాపాడే అవకాసం పెరువుతుంది",
+  "detected_language": "Telugu (తెలుగు)",
+  "language_code": "te-IN",
+  "translated_english": "In an emergency situation, it's crucial to assess the victim's condition, checking for breathing, pulse, and bleeding, and start CPR if necessary, then inform emergency medical services, staying calm and taking prompt actions can increase the chance of saving a life",
+  "category": "General Emergency",
+  "severity": "AMBER_HIGH",
+  "triage_code": "AMBER",
+  "chief_complaint": "Emergency situation requiring immediate assessment and action",
+  "symptoms": [
+    "Bleeding",
+    "Loss of breathing",
+    "Cardiac arrest"
+  ],
+  "recommended_doctor_specialty": "Emergency Physician",
+  "triage_summary": "Patient requires immediate assessment and potential CPR, inform emergency medical services",
+  "first_aid_english": [
+    {
+      "step_number": 1,
+      "instruction": "Check the victim's airway, breathing, and circulation",
+      "icon": "🫀"
+    },
+    {
+      "step_number": 2,
+      "instruction": "Start CPR if the victim is unresponsive and not breathing",
+      "icon": "💊"
+    },
+    {
+      "step_number": 3,
+      "instruction": "Stop any bleeding by applying pressure to the wound",
+      "icon": "🚑"
+    },
+    {
+      "step_number": 4,
+      "instruction": "Keep the victim calm and comfortable",
+      "icon": "🧘"
+    },
+    {
+      "step_number": 5,
+      "instruction": "Call emergency medical services for assistance",
+      "icon": "📞"
+    }
+  ],
+  "first_aid_native": [
+    {
+      "step_number": 1,
+      "instruction": "బాధితుని శ్వాసనాళం, శ్వాస, రక్త ప్రసరణను తనిఖీ చేయండి",
+      "icon": "🫀"
+    },
+    {
+      "step_number": 2,
+      "instruction": "బాధితుడు ప్రతిస్పందించకపోతే మరియు శ్వాస తీసుకోకపోతే CPRని ప్రారంభించండి",
+      "icon": "💊"
+    },
+    {
+      "step_number": 3,
+      "instruction": "గాయంపై ఒత్తిడి తెచ్చి రక్తస్రావాన్ని ఆపండి",
+      "icon": "🚑"
+    },
+    {
+      "step_number": 4,
+      "instruction": "బాధితుణ్ణి శాంతంగా మరియు సుఖంగా ఉంచండి",
+      "icon": "🧘"
+    },
+    {
+      "step_number": 5,
+      "instruction": "సహాయం కోసం అత్యవసర వైద్య సేవలను సంప్రదించండి",
+      "icon": "📞"
+    }
+  ]
+}

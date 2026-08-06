@@ -1,6 +1,22 @@
 import React from 'react';
 import { Mic, Radio, RotateCcw, Languages } from 'lucide-react';
 
+const INDIAN_LANGUAGES = [
+  { code: "auto", label: "✨ Auto-Detect (All Indian Languages)" },
+  { code: "te-IN", label: "🇮🇳 Telugu (తెలుగు)" },
+  { code: "hi-IN", label: "🇮🇳 Hindi (हिंदी / Gangetic Dialects)" },
+  { code: "ta-IN", label: "🇮🇳 Tamil (தமிழ்)" },
+  { code: "kn-IN", label: "🇮🇳 Kannada (ಕನ್ನಡ)" },
+  { code: "ml-IN", label: "🇮🇳 Malayalam (മലയാളം)" },
+  { code: "mr-IN", label: "🇮🇳 Marathi (मराठी)" },
+  { code: "bn-IN", label: "🇮🇳 Bengali (বাংলা)" },
+  { code: "gu-IN", label: "🇮🇳 Gujarati (ગુજરાતી)" },
+  { code: "pa-IN", label: "🇮🇳 Punjabi (ਪੰਜਾਬੀ)" },
+  { code: "or-IN", label: "🇮🇳 Odia (ଓଡ଼ိଆ)" },
+  { code: "ur-IN", label: "🇮🇳 Urdu (اردو)" },
+  { code: "en-IN", label: "🇬🇧 English (India)" },
+];
+
 export default function VoiceIntakeCard({
   inputMode,
   setInputMode,
@@ -12,7 +28,8 @@ export default function VoiceIntakeCard({
   setTranscript,
   typedText,
   setTypedText,
-  handleClear
+  handleClear,
+  hasAudioBlob
 }) {
   return (
     <div className="hud-card">
@@ -36,28 +53,32 @@ export default function VoiceIntakeCard({
 
       {inputMode === 'voice' ? (
         <div className="voice-hud">
-          {/* Speech Engine Language Selector */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px', background: 'var(--bg-subtle)', padding: '6px 12px', borderRadius: '100px', border: '1px solid var(--border-light)' }}>
-            <Languages size={14} color="var(--text-muted)" />
-            <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-muted)' }}>SPEECH ENGINE:</span>
-            <button
-              className={`lang-btn ${selectedLang === 'te-IN' ? 'active' : ''}`}
-              onClick={() => setSelectedLang('te-IN')}
+          {/* Multilingual Speech Engine Language Dropdown */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px', background: 'var(--bg-subtle)', padding: '8px 14px', borderRadius: '12px', border: '1px solid var(--border-light)', width: '100%' }}>
+            <Languages size={16} color="#2563EB" />
+            <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>WHISPER V3 STT ENGINE:</span>
+            <select
+              value={selectedLang}
+              onChange={(e) => setSelectedLang(e.target.value)}
+              style={{
+                background: 'var(--bg-card)',
+                color: 'var(--text-main)',
+                border: '1px solid var(--border-light)',
+                borderRadius: '8px',
+                padding: '6px 10px',
+                fontSize: '12px',
+                fontWeight: '600',
+                outline: 'none',
+                width: '100%',
+                cursor: 'pointer'
+              }}
             >
-              🇮🇳 Telugu Voice
-            </button>
-            <button
-              className={`lang-btn ${selectedLang === 'hi-IN' ? 'active' : ''}`}
-              onClick={() => setSelectedLang('hi-IN')}
-            >
-              🇮🇳 Hindi Voice
-            </button>
-            <button
-              className={`lang-btn ${selectedLang === 'en-IN' ? 'active' : ''}`}
-              onClick={() => setSelectedLang('en-IN')}
-            >
-              🇬🇧 English
-            </button>
+              {INDIAN_LANGUAGES.map((lang) => (
+                <option key={lang.code} value={lang.code}>
+                  {lang.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           <button
@@ -76,13 +97,15 @@ export default function VoiceIntakeCard({
 
           <p style={{ fontSize: '13px', color: 'var(--text-sub)', marginTop: '10px', fontWeight: '600' }}>
             {isListening
-              ? `🎙️ Listening in ${selectedLang === 'te-IN' ? 'Telugu (తెలుగు)' : selectedLang === 'hi-IN' ? 'Hindi (हिंदी)' : 'English'}... Speak clearly`
-              : "Tap Microphone Orb to start speech intake"}
+              ? "🎙️ Groq Whisper v3 Recording Active • Speak in any Indian language or dialect..."
+              : hasAudioBlob
+              ? "✅ Audio Recording Ready • Click Transmit SOS below or speak again"
+              : "Tap Microphone Orb to record audio in any language"}
           </p>
 
           <div style={{ width: '100%', marginTop: '14px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-muted)', fontWeight: '700' }}>
-              <span>ACCUMULATED SPEECH TRANSCRIPT:</span>
+              <span>ACCUMULATED SPEECH TRANSCRIPT / AUDIO PREVIEW:</span>
               {transcript && (
                 <button className="clear-link" onClick={handleClear}>
                   <RotateCcw size={12} style={{ display: 'inline' }} /> Clear
@@ -93,13 +116,7 @@ export default function VoiceIntakeCard({
               className="hud-textarea"
               value={transcript}
               onChange={(e) => setTranscript(e.target.value)}
-              placeholder={
-                selectedLang === 'te-IN'
-                  ? "మాట్లాడిన తెలుగు వాక్యాలు ఇక్కడ నమోదు చేయబడతాయి..."
-                  : selectedLang === 'hi-IN'
-                  ? "बोले गए हिंदी वाक्य यहाँ दर्ज किए जाएँगे..."
-                  : "Spoken audio streams here continuously without loss across pauses..."
-              }
+              placeholder="Spoken words stream here in real-time. High-precision Whisper v3 will process complete audio upon transmission..."
             />
           </div>
         </div>

@@ -4,7 +4,7 @@ import GpsRadarMap from '../components/GpsRadarMap';
 import VoiceIntakeCard from '../components/VoiceIntakeCard';
 import CategoryPresets from '../components/CategoryPresets';
 import TriageResultCard from '../components/TriageResultCard';
-import { sendSosRequest } from '../services/api';
+import { sendSosRequest, sendAudioSosRequest } from '../services/api';
 
 export default function CitizenSosPage({
   selectedLang: propSelectedLang,
@@ -13,7 +13,6 @@ export default function CitizenSosPage({
   onOpenHospitalLogin,
   onOpenAdminLogin
 }) {
-
   const [internalLang, setInternalLang] = useState("auto");
   const selectedLang = propSelectedLang || internalLang;
   const setSelectedLang = propSetSelectedLang || setInternalLang;
@@ -23,12 +22,15 @@ export default function CitizenSosPage({
   
   const [transcript, setTranscript] = useState("");
   const [typedText, setTypedText] = useState("");
-  
+  const [audioBlob, setAudioBlob] = useState(null);
+
   const [gps, setGps] = useState({ lat: 17.3850, lng: 78.4867, status: "GPS ACTIVE • HYDERABAD NODE" });
   const [loading, setLoading] = useState(false);
   const [triageResult, setTriageResult] = useState(null);
 
   const recognitionRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
   const accumulatedRef = useRef("");
 
   // Initialize GPS Coordinates
@@ -93,21 +95,57 @@ export default function CitizenSosPage({
     }
   }, [selectedLang]);
 
-  // Toggle Microphone Intake
-  const toggleListening = () => {
-    if (!recognitionRef.current) {
-      alert("Browser speech recognition unavailable. Please use Type SOS mode.");
-      return;
-    }
+  // Start MediaRecorder (Audio Binary Capture for Groq Whisper v3)
+  const startAudioRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioChunksRef.current = [];
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
 
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        setAudioBlob(blob);
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start(250);
+      mediaRecorderRef.current = mediaRecorder;
+    } catch (err) {
+      console.warn("MediaRecorder mic access not granted or unsupported:", err);
+    }
+  };
+
+  const stopAudioRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+  };
+
+  // Toggle Microphone Intake (Web Speech + MediaRecorder)
+  const toggleListening = () => {
     if (isListening) {
-      recognitionRef.current.stop();
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop(); } catch(e){}
+      }
+      stopAudioRecording();
+      setIsListening(false);
     } else {
-      recognitionRef.current.lang = selectedLang === "auto" ? "en-IN" : selectedLang;
-      try {
-        recognitionRef.current.start();
-      } catch (e) {
-        console.log("Recognition active");
+      setAudioBlob(null);
+      accumulatedRef.current = "";
+      setTranscript("");
+      startAudioRecording();
+      
+      if (recognitionRef.current) {
+        recognitionRef.current.lang = selectedLang === "auto" ? "en-IN" : selectedLang;
+        try { recognitionRef.current.start(); } catch (e) {}
+      } else {
+        setIsListening(true);
       }
     }
   };
@@ -123,33 +161,55 @@ export default function CitizenSosPage({
     accumulatedRef.current = "";
     setTranscript("");
     setTypedText("");
+    setAudioBlob(null);
     setTriageResult(null);
   };
 
   // Submit SOS Signal
   const submitSOS = async () => {
+    if (isListening) {
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop(); } catch(e){}
+      }
+      stopAudioRecording();
+      setIsListening(false);
+    }
+
     const activeText = inputMode === "voice" ? transcript : typedText;
 
-    if (!activeText || activeText.trim().length === 0) {
-      alert("Please speak or type your emergency description before sending SOS.");
+    if (inputMode === "voice" && !audioBlob && (!activeText || activeText.trim().length === 0)) {
+      alert("Please speak into the microphone or type your emergency description before transmitting SOS.");
       return;
     }
 
-    if (isListening && recognitionRef.current) {
-      recognitionRef.current.stop();
+    if (inputMode === "type" && (!typedText || typedText.trim().length === 0)) {
+      alert("Please type your emergency description before transmitting SOS.");
+      return;
     }
 
     setLoading(true);
     setTriageResult(null);
 
     try {
-      const data = await sendSosRequest({
-        text: activeText,
-        input_mode: inputMode,
-        language: selectedLang,
-        latitude: gps.lat,
-        longitude: gps.lng
-      });
+      let data;
+      // If we recorded audio, send high-precision audio blob to Whisper Large v3 backend
+      if (inputMode === "voice" && audioBlob) {
+        data = await sendAudioSosRequest(
+          audioBlob,
+          selectedLang,
+          gps.lat,
+          gps.lng
+        );
+      } else {
+        // Text-based intake (or live transcript if mic failed)
+        data = await sendSosRequest({
+          text: activeText,
+          input_mode: inputMode,
+          language: selectedLang,
+          latitude: gps.lat,
+          longitude: gps.lng
+        });
+      }
 
       setTriageResult(data);
     } catch (err) {
@@ -190,7 +250,6 @@ export default function CitizenSosPage({
         onOpenAdminLogin={onOpenAdminLogin}
       />
 
-
       <div className="dashboard-grid">
         <div className="intake-panel">
           <VoiceIntakeCard
@@ -208,6 +267,7 @@ export default function CitizenSosPage({
             typedText={typedText}
             setTypedText={setTypedText}
             handleClear={handleClear}
+            hasAudioBlob={!!audioBlob}
           />
 
           <CategoryPresets addSymptomPreset={addSymptomPreset} />
