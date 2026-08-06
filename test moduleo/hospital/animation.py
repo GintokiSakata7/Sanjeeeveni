@@ -17,6 +17,7 @@ from config import (
 def generate_sonar_ping(frequency: float = 950.0, duration: float = 0.12, sample_rate: int = 44100) -> pygame.mixer.Sound | None:
     """Synthesizes high-tech tactical sonar ping sound effect using NumPy."""
     try:
+        import numpy as np
         t = np.linspace(0, duration, int(sample_rate * duration), False)
         # Sine wave with fast exponential decay envelope
         sine = np.sin(2 * np.pi * frequency * t)
@@ -28,13 +29,15 @@ def generate_sonar_ping(frequency: float = 950.0, duration: float = 0.12, sample
         return None
 
 
+
 class AnimationManager:
     """Manages visual telemetry animations, expanding shockwaves, and target lock graphics."""
 
     def __init__(self):
         self.pulse_time = 0.0
-        self.expanding_rings = []  # List of dicts: {radius_px, max_radius_px, alpha, speed}
-        self.notifications = []    # List of dicts: {text, start_time, duration, color}
+        self.expanding_rings = []       # List of dicts: {radius_px, max_radius_px, alpha, speed}
+        self.notifications = []         # List of dicts: {text, start_time, duration, color}
+        self.detection_ripples = []     # List of dicts: {x, y, radius, max_radius, alpha}
         self.sound_ping = generate_sonar_ping()
 
     def play_ping(self):
@@ -44,6 +47,17 @@ class AnimationManager:
                 self.sound_ping.play()
             except Exception:
                 pass
+
+    def trigger_detection_ripple(self, x: int, y: int):
+        """Spawns an expanding sonar ripple effect at target coordinates when discovered by sweep."""
+        self.detection_ripples.append({
+            "x": x,
+            "y": y,
+            "radius": 4.0,
+            "max_radius": 32.0,
+            "alpha": 255.0,
+            "speed": 120.0
+        })
 
     def trigger_expansion_ring(self):
         """Spawns an expanding radial shockwave when radius steps up."""
@@ -75,12 +89,20 @@ class AnimationManager:
             if ring["radius_px"] >= ring["max_radius_px"]:
                 self.expanding_rings.remove(ring)
 
+        # Update detection ripples
+        for rip in self.detection_ripples[:]:
+            rip["radius"] += rip["speed"] * dt
+            prog = rip["radius"] / rip["max_radius"]
+            rip["alpha"] = max(0.0, 255.0 * (1.0 - prog))
+            if rip["radius"] >= rip["max_radius"]:
+                self.detection_ripples.remove(rip)
+
         # Update notifications
         now = time.time()
         self.notifications = [n for n in self.notifications if (now - n["start_time"]) < n["duration"]]
 
     def draw_expanding_rings(self, surface: pygame.Surface):
-        """Renders expanding radial shockwave rings."""
+        """Renders expanding radial shockwave rings and target ripples."""
         for ring in self.expanding_rings:
             r = int(ring["radius_px"])
             alpha = int(ring["alpha"])
@@ -89,41 +111,84 @@ class AnimationManager:
                 pygame.draw.circle(s, (0, 255, 180, alpha), (r + 2, r + 2), r, 2)
                 surface.blit(s, (RADAR_CENTER_X - r - 2, RADAR_CENTER_Y - r - 2))
 
-    def draw_target_reticle(self, surface: pygame.Surface, x: int, y: int, is_locked: bool, name: str, dist_str: str):
-        """Renders glowing military target reticle, lock rings, and info labels."""
+        # Render detection ripples at target blip coordinates
+        for rip in self.detection_ripples:
+            rx, ry = int(rip["x"]), int(rip["y"])
+            rr = int(rip["radius"])
+            ralpha = int(rip["alpha"])
+            if rr > 0 and ralpha > 0:
+                s_rip = pygame.Surface((rr * 2 + 4, rr * 2 + 4), pygame.SRCALPHA)
+                pygame.draw.circle(s_rip, (0, 255, 200, ralpha), (rr + 2, rr + 2), rr, 2)
+                surface.blit(s_rip, (rx - rr - 2, ry - rr - 2))
+
+    def draw_target_reticle(self, surface: pygame.Surface, x: int, y: int, is_locked: bool, name: str, dist_str: str, status: str = "PENDING"):
+        """
+        Renders authentic Hospital Badge Icon on radar screen.
+        Status colors:
+          - PENDING: Amber/Yellow (255, 190, 0)
+          - ACCEPTED: Neon Green (0, 255, 140)
+          - REJECTED: Muted Gray (120, 130, 140)
+          - LOCKED/WINNER: Crimson Red (255, 60, 100) with tracking vector line
+        """
         t = self.pulse_time
-        base_color = COLOR_TARGET_LOCKED if is_locked else COLOR_TARGET_NORMAL
 
-        # Pulsing target dot
-        pulse_r = int(6 + math.sin(t * 8) * 2)
-        pygame.draw.circle(surface, base_color, (x, y), pulse_r)
-        pygame.draw.circle(surface, (255, 255, 255), (x, y), 2)
+        if is_locked:
+            badge_color = COLOR_TARGET_LOCKED
+            status_tag = "WINNER (ACCEPTED)"
+        elif status == "ACCEPTED":
+            badge_color = (0, 255, 140)
+            status_tag = "ACCEPTED"
+        elif status == "REJECTED":
+            badge_color = (120, 130, 140)
+            status_tag = "REJECTED"
+        else:
+            badge_color = (255, 190, 0)
+            status_tag = "PENDING"
 
-        # Connection line to radar center if locked
+        # Connection tracking line to center if locked winner
         if is_locked:
             s_line = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
-            pygame.draw.line(s_line, (255, 60, 100, 120), (RADAR_CENTER_X, RADAR_CENTER_Y), (x, y), 1)
+            pygame.draw.line(s_line, (255, 60, 100, 140), (RADAR_CENTER_X, RADAR_CENTER_Y), (x, y), 2)
             surface.blit(s_line, (0, 0))
 
-            # Tactical Lock Box & Rotating Crosshair
-            box_size = 28
-            rect = pygame.Rect(x - box_size // 2, y - box_size // 2, box_size, box_size)
-            pygame.draw.rect(surface, COLOR_TARGET_LOCKED, rect, 1)
+        # Pulsing outer aura ring
+        pulse_r = int(14 + math.sin(t * 6) * 3)
+        if status != "REJECTED":
+            s_pulse = pygame.Surface((pulse_r * 2 + 4, pulse_r * 2 + 4), pygame.SRCALPHA)
+            pygame.draw.circle(s_pulse, (*badge_color[:3], 70), (pulse_r + 2, pulse_r + 2), pulse_r)
+            surface.blit(s_pulse, (x - pulse_r - 2, y - pulse_r - 2))
 
-            # Corner brackets
-            len_b = 6
-            # Top-Left
-            pygame.draw.line(surface, (255, 255, 255), (rect.left, rect.top), (rect.left + len_b, rect.top), 2)
-            pygame.draw.line(surface, (255, 255, 255), (rect.left, rect.top), (rect.left, rect.top + len_b), 2)
-            # Top-Right
-            pygame.draw.line(surface, (255, 255, 255), (rect.right, rect.top), (rect.right - len_b, rect.top), 2)
-            pygame.draw.line(surface, (255, 255, 255), (rect.right, rect.top), (rect.right, rect.top + len_b), 2)
+        # 1. Hospital Icon Badge Box (Rounded Rectangle with Cross)
+        badge_w, badge_h = 20, 20
+        badge_rect = pygame.Rect(x - badge_w // 2, y - badge_h // 2, badge_w, badge_h)
+        pygame.draw.rect(surface, (12, 24, 30), badge_rect, border_radius=4)
+        pygame.draw.rect(surface, badge_color, badge_rect, 2, border_radius=4)
 
-        # Label Overlay
-        font = pygame.font.SysFont("Consolas", 12, bold=True)
-        lbl_text = f"{name} ({dist_str})"
-        lbl_surf = font.render(lbl_text, True, base_color)
-        surface.blit(lbl_surf, (x + 12, y - 8))
+        # White Medical Cross (+) inside badge
+        cw, ch = 10, 3
+        # Horizontal
+        pygame.draw.rect(surface, (255, 255, 255), (x - cw // 2, y - ch // 2, cw, ch))
+        # Vertical
+        pygame.draw.rect(surface, (255, 255, 255), (x - ch // 2, y - cw // 2, ch, cw))
+
+        # 2. Tactical Reticle Brackets if Locked Winner
+        if is_locked:
+            b_size = 30
+            b_rect = pygame.Rect(x - b_size // 2, y - b_size // 2, b_size, b_size)
+            pygame.draw.rect(surface, COLOR_TARGET_LOCKED, b_rect, 1)
+
+            # Corner bracket ticks
+            lb = 6
+            pygame.draw.line(surface, (255, 255, 255), (b_rect.left, b_rect.top), (b_rect.left + lb, b_rect.top), 2)
+            pygame.draw.line(surface, (255, 255, 255), (b_rect.left, b_rect.top), (b_rect.left, b_rect.top + lb), 2)
+            pygame.draw.line(surface, (255, 255, 255), (b_rect.right, b_rect.top), (b_rect.right - lb, b_rect.top), 2)
+            pygame.draw.line(surface, (255, 255, 255), (b_rect.right, b_rect.top), (b_rect.right, b_rect.top + lb), 2)
+
+        # 3. Text Overlay Label
+        font_lbl = pygame.font.SysFont("Consolas", 11, bold=True)
+        lbl_text = f"🏥 {name} ({dist_str})"
+        lbl_surf = font_lbl.render(lbl_text, True, badge_color)
+        surface.blit(lbl_surf, (x + 14, y - 8))
 
     def draw_notifications(self, surface: pygame.Surface):
         """Renders HUD notification banners on top center of screen."""

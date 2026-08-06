@@ -41,8 +41,19 @@ COLOR_TARGET_NORMAL = (0, 230, 130)      # Standard Hospital Green
 COLOR_TARGET_LOCKED = (255, 60, 100)     # Locked Hospital Neon Crimson
 COLOR_TARGET_RING = (0, 255, 200)        # Target Pulse Ring
 
-# Adaptive Radius Steps (in meters)
-RADIUS_STEPS = [500, 1000, 2000, 5000, 10000, 20000, 50000]
+# Adaptive Radius Steps (in meters) — starts at 50m, expands until hospital accepts
+RADIUS_STEPS = [50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000]
+
+# Accept / Reject Button Colors (Hospital Response UI)
+COLOR_BTN_ACCEPT = (0, 200, 100)            # Green accept button
+COLOR_BTN_ACCEPT_HOVER = (0, 255, 140)      # Bright green hover
+COLOR_BTN_REJECT = (220, 50, 60)            # Red reject button
+COLOR_BTN_REJECT_HOVER = (255, 80, 100)     # Bright red hover
+COLOR_RESPONSE_ACCEPTED = (0, 255, 140)     # Hospital accepted status
+COLOR_RESPONSE_REJECTED = (255, 60, 80)     # Hospital rejected status
+COLOR_RESPONSE_PENDING = (255, 180, 0)      # Hospital pending status
+COLOR_FINAL_BANNER_BG = (10, 35, 30)        # Final selection banner background
+COLOR_FINAL_BANNER_BORDER = (0, 255, 180)   # Final selection banner border
 
 # Disease & Symptom Keyword Mapping Engine
 DISEASE_KEYWORDS = {
