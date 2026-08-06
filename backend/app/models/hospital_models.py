@@ -41,6 +41,8 @@ class Hospital(SQLModel, table=True):
     nabh_number: Optional[str] = Field(default=None)
     gst_number: Optional[str] = Field(default=None)
     status: VerificationStatusEnum = Field(default=VerificationStatusEnum.PENDING_VERIFICATION, index=True)
+    latitude: Optional[float] = Field(default=17.4126)
+    longitude: Optional[float] = Field(default=78.4482)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 

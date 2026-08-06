@@ -42,7 +42,9 @@ class HospitalRepository:
             has_nabh_accreditation=payload.basic_info.has_nabh_accreditation,
             nabh_number=payload.basic_info.nabh_number,
             gst_number=payload.basic_info.gst_number,
-            status=VerificationStatusEnum.PENDING_VERIFICATION
+            status=VerificationStatusEnum.PENDING_VERIFICATION,
+            latitude=payload.address.latitude,
+            longitude=payload.address.longitude
         )
         self.session.add(db_hospital)
 
@@ -152,6 +154,8 @@ class HospitalRepository:
             "registration_number": hospital.registration_number,
             "license_number": hospital.license_number,
             "status": hospital.status,
+            "latitude": hospital.latitude or (addr.latitude if addr else 17.4126),
+            "longitude": hospital.longitude or (addr.longitude if addr else 78.4482),
             "created_at": hospital.created_at,
             "address": {
                 "country": addr.country if addr else "",
