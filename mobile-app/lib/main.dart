@@ -1,28 +1,45 @@
 import 'package:flutter/material.dart';
-import 'screens/citizen_sos_screen.dart';
+import 'screens/splash_screen.dart';
+import 'services/preferences_service.dart';
 
-void main() {
-  runApp(const AeroApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await PreferencesService().loadFromDisk();
+  runApp(const SanjeevaniApp());
 }
 
-class AeroApp extends StatelessWidget {
-  const AeroApp({super.key});
+class SanjeevaniApp extends StatelessWidget {
+  const SanjeevaniApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'AERO Emergency',
+      title: 'Sanjeevani - Emergency Medical Response',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFFDC2626),
-          brightness: Brightness.light,
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: const Color(0xFF0F172A),
+        primaryColor: const Color(0xFFDC2626),
+        colorScheme: const ColorScheme.dark(
+          primary: Color(0xFFDC2626),
+          secondary: Color(0xFF0284C7),
+          surface: Color(0xFF1E293B),
+          error: Color(0xFFEF4444),
         ),
         fontFamily: 'Roboto',
         useMaterial3: true,
-        scaffoldBackgroundColor: const Color(0xFFF1F5F9),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFF0F172A),
+          elevation: 0,
+          titleTextStyle: TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+          iconTheme: IconThemeData(color: Colors.white),
+        ),
       ),
-      home: const CitizenSosScreen(),
+      home: const SplashScreen(),
     );
   }
 }
