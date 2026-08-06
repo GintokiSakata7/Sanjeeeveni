@@ -83,3 +83,26 @@ def get_hospital_profile(
     """Retrieves complete profile details for a hospital"""
     service = HospitalService(db)
     return service.get_hospital_profile(hospital_id)
+
+@router.get("/all")
+def get_all_hospitals(db: Session = Depends(get_session)):
+    """Retrieves all hospitals with their location data for the radar."""
+    from app.models.hospital_models import Hospital, HospitalAddress
+    from sqlmodel import select
+    
+    # We join Hospital with HospitalAddress to get the coordinates
+    query = select(Hospital, HospitalAddress).join(HospitalAddress, isouter=True)
+    results = db.exec(query).all()
+    
+    hospitals = []
+    for h, addr in results:
+        hospitals.append({
+            "id": h.id,
+            "name": h.name,
+            "category": h.category,
+            "status": h.status,
+            "latitude": addr.latitude if addr else None,
+            "longitude": addr.longitude if addr else None,
+            "complete_address": addr.complete_address if addr else None
+        })
+    return hospitals

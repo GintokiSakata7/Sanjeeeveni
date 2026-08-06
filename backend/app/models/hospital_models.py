@@ -208,3 +208,21 @@ class Ambulance(SQLModel, table=True):
     current_lat: Optional[float] = Field(default=None)
     current_lng: Optional[float] = Field(default=None)
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class SOSRequest(SQLModel, table=True):
+    __tablename__ = "sos_requests"
+    __table_args__ = {"extend_existing": True}
+
+    id: str = Field(primary_key=True)
+    hospital_id: str = Field(foreign_key="hospitals.id", index=True)
+    citizen_lat: float
+    citizen_lng: float
+    transcript: str
+    triage_urgency: str
+    image_url: Optional[str] = Field(default=None)
+    status: str = Field(default="PENDING")  # PENDING, ACCEPTED, REJECTED
+    assigned_doctor_id: Optional[str] = Field(default=None, foreign_key="doctors.id")
+    assigned_doctor_name: Optional[str] = Field(default=None)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)

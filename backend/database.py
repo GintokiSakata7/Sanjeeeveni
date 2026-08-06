@@ -7,6 +7,8 @@ import os
 from dotenv import load_dotenv
 from sqlmodel import SQLModel, create_engine, Session
 from sqlalchemy import text
+from app.models.hospital_models import *  # Ensure all models are loaded
+
 
 load_dotenv()
 

@@ -26,6 +26,8 @@ import {
   Lock
 } from 'lucide-react';
 
+import IncomingSOSAlert from '../components/IncomingSOSAlert';
+
 export default function HospitalPortalDashboard({ hospitalSession, onLogout, onBackToCitizen }) {
   const hospitalId = hospitalSession?.hospital_id || 'HOSP-DEFAULT';
   const hospitalName = hospitalSession?.hospital_name || 'Hospital Command Center';
@@ -48,6 +50,55 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
   const [ambulances, setAmbulances] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // SOS Routing State
+  const [incomingSOS, setIncomingSOS] = useState(null);
+
+  // Poll for incoming SOS Requests every 3 seconds
+  useEffect(() => {
+    if (!hospitalId || hospitalId === 'HOSP-DEFAULT') return;
+
+    const pollSOS = async () => {
+      try {
+        const res = await fetch(`http://localhost:8000/api/v1/routing/pending/${hospitalId}`);
+        if (res.ok) {
+          const requests = await res.json();
+          if (requests && requests.length > 0) {
+            // Pick the most recent pending SOS to display
+            setIncomingSOS(requests[0]);
+          } else {
+            setIncomingSOS(null);
+          }
+        }
+      } catch (err) {
+        // Silently fail polling
+      }
+    };
+
+    const intervalId = setInterval(pollSOS, 3000);
+    pollSOS(); // initial check
+
+    return () => clearInterval(intervalId);
+  }, [hospitalId]);
+
+  const handleRespondToSOS = async (sosId, status, doctorId = null) => {
+    try {
+      const payload = { status, doctor_id: doctorId };
+      const res = await fetch(`http://localhost:8000/api/v1/routing/respond/${sosId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        triggerToast(`SOS Emergency ${status}`, status === 'ACCEPTED' ? 'success' : 'error');
+        setIncomingSOS(null);
+      } else {
+        triggerToast('Failed to respond to SOS', 'error');
+      }
+    } catch (err) {
+      triggerToast('Network error responding to SOS', 'error');
+    }
+  };
 
   // Toast Notification State
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
@@ -1011,6 +1062,14 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
           </div>
         </div>
       )}
+
+      {/* SOS EMERGENCY ALERT MODAL */}
+      <IncomingSOSAlert
+        sosRequest={incomingSOS}
+        availableDoctors={doctors.filter(d => d.status === 'Available')}
+        onAccept={(sosId, docId) => handleRespondToSOS(sosId, 'ACCEPTED', docId)}
+        onReject={(sosId) => handleRespondToSOS(sosId, 'REJECTED')}
+      />
     </div>
   );
 }

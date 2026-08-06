@@ -197,7 +197,12 @@ export default function CitizenSosPage({
     setTriageResult(null);
 
     // Start the full radar search (fetches ALL hospitals, begins progressive scan)
-    radar.startSearch(gps.lat, gps.lng);
+    radar.startSearch(gps.lat, gps.lng, {
+      text: activeText,
+      latitude: gps.lat,
+      longitude: gps.lng,
+      urgency: 'HIGH' // default until AI says otherwise
+    });
 
     try {
       let data;
@@ -221,6 +226,10 @@ export default function CitizenSosPage({
       }
 
       setTriageResult(data);
+      // Update the radar payload with the confirmed AI urgency
+      if (radar.updateSosPayload) {
+        radar.updateSosPayload({ urgency: data.severity });
+      }
     } catch (err) {
       console.error("Error submitting SOS:", err);
       alert("Unable to connect to AERO AI FastAPI server on http://localhost:8000.");

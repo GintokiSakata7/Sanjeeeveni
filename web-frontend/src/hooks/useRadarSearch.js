@@ -117,10 +117,18 @@ export default function useRadarSearch() {
     }, 5000);
   }, []);
 
+  const sosPayloadRef = useRef(null);
+
+  const updateSosPayload = useCallback((payload) => {
+    sosPayloadRef.current = { ...sosPayloadRef.current, ...payload };
+  }, []);
+
   /**
    * Start a new search: fetch all hospitals, calculate distances, begin scanning.
    */
-  const startSearch = useCallback(async (userLat, userLon) => {
+  const startSearch = useCallback(async (userLat, userLon, initialPayload = null) => {
+    sosPayloadRef.current = initialPayload;
+
     // Reset state
     setDiscoveredHospitals([]);
     setResponses({});
@@ -137,12 +145,11 @@ export default function useRadarSearch() {
     addNotification(`SCANNING RADIUS: ${formatDistance(RADIUS_STEPS[0])}...`, 'scan');
 
     try {
-      // Fetch ALL rows from koushik table
-      const { data, error } = await supabase
-        .from('koushik')
-        .select('*');
+      // Fetch ALL hospitals from the FastAPI backend instead of direct Supabase dummy table
+      const res = await fetch('http://localhost:8000/api/v1/hospital/all');
+      if (!res.ok) throw new Error("Failed to fetch hospitals");
+      const data = await res.json();
 
-      if (error) throw error;
       if (!data || data.length === 0) {
         addNotification('NO HOSPITALS FOUND IN DATABASE', 'error');
         return;
@@ -166,7 +173,7 @@ export default function useRadarSearch() {
       addNotification(`LOADED ${enriched.length} HOSPITALS — BEGINNING SCAN`, 'info');
 
     } catch (err) {
-      console.error('Supabase fetch error:', err);
+      console.error('Backend fetch error:', err);
       addNotification('DATABASE ERROR — COULD NOT FETCH HOSPITALS', 'error');
     }
   }, [addNotification]);
@@ -186,7 +193,7 @@ export default function useRadarSearch() {
    * Called by RadarCanvas when the sweep beam passes a hospital's bearing.
    * Transitions a hospital from "undiscovered" to "discovered + PENDING".
    */
-  const discoverHospital = useCallback((hospitalId) => {
+  const discoverHospital = useCallback(async (hospitalId) => {
     if (stateRef.current.finalHospital) return; // Search already resolved
 
     const hospital = (stateRef.current.allHospitals || []).find(h => h.id === hospitalId);
@@ -206,6 +213,35 @@ export default function useRadarSearch() {
     });
 
     addNotification(`FOUND: ${hospital.name} — ${formatDistance(hospital.distance)}`, 'discover');
+
+    // Send SOS Routing request to the backend for this specific hospital
+    try {
+      const payload = sosPayloadRef.current || {};
+      const res = await fetch('http://localhost:8000/api/v1/routing/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          hospital_id: hospitalId,
+          citizen_lat: payload.latitude || 0,
+          citizen_lng: payload.longitude || 0,
+          transcript: payload.text || 'Emergency distress signal',
+          triage_urgency: payload.urgency || 'HIGH',
+          image_url: null
+        })
+      });
+      
+      if (!res.ok) throw new Error("Routing failed");
+      const data = await res.json();
+      
+      // We could store the returned sos_id if we wanted to track it exactly, 
+      // but for polling we can just poll the status using the hospital_id + citizen data
+      // For now, we'll store sos_id in a mapping so the polling system knows which SOS to check.
+      setResponses(prev => ({ ...prev, [`${hospitalId}_sos_id`]: data.sos_id }));
+      
+    } catch (err) {
+      console.error("Failed to send SOS to hospital:", err);
+    }
+
   }, [addNotification]);
 
   /**
@@ -251,11 +287,42 @@ export default function useRadarSearch() {
    * If all rejected → expand radius. If no hospitals at radius → expand.
    */
   useEffect(() => {
+    // Poll backend for PENDING SOS statuses every 3 seconds
+    let statusTimer = null;
+    if (isSearchActive && !finalHospital) {
+      statusTimer = setInterval(async () => {
+        const state = stateRef.current;
+        const currentResponses = state.responses || {};
+        
+        for (const [hospitalId, status] of Object.entries(currentResponses)) {
+          if (status === 'PENDING') {
+            const sosId = currentResponses[`${hospitalId}_sos_id`];
+            if (sosId) {
+              try {
+                const res = await fetch(`http://localhost:8000/api/v1/routing/status/${sosId}`);
+                if (res.ok) {
+                  const data = await res.json();
+                  if (data.status === 'ACCEPTED') {
+                    acceptHospital(hospitalId);
+                  } else if (data.status === 'REJECTED') {
+                    rejectHospital(hospitalId);
+                  }
+                }
+              } catch (e) {
+                // Silently ignore poll errors
+              }
+            }
+          }
+        }
+      }, 3000);
+    }
+
     if (!isSearchActive || finalHospital || allHospitals.length === 0) return;
 
     expansionTimerRef.current = setInterval(() => {
       const state = stateRef.current;
       if (state.finalHospital || !state.isSearchActive) return;
+
 
       const rsi = state.radiusStepIndex;
       const radius = RADIUS_STEPS[rsi] || RADIUS_STEPS[RADIUS_STEPS.length - 1];
@@ -297,6 +364,9 @@ export default function useRadarSearch() {
         clearInterval(expansionTimerRef.current);
         expansionTimerRef.current = null;
       }
+      if (statusTimer) {
+        clearInterval(statusTimer);
+      }
     };
   }, [isSearchActive, finalHospital, allHospitals.length, addNotification]);
 
@@ -329,6 +399,7 @@ export default function useRadarSearch() {
     acceptHospital,
     rejectHospital,
     getUndiscoveredInRadius,
+    updateSosPayload,
 
     // Helpers
     formatDistance,
