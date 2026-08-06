@@ -9,8 +9,26 @@ import logging
 import math
 import time
 import requests
-from geopy.distance import geodesic
+
+try:
+    from geopy.distance import geodesic
+except ImportError:
+    class GeodesicFallback:
+        def __init__(self, coord1, coord2):
+            lat1, lon1 = math.radians(coord1[0]), math.radians(coord1[1])
+            lat2, lon2 = math.radians(coord2[0]), math.radians(coord2[1])
+            dlat = lat2 - lat1
+            dlon = lon2 - lon1
+            a = math.sin(dlat / 2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2)**2
+            c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+            self.meters = c * 6371000.0
+            self.km = self.meters / 1000.0
+
+    def geodesic(coord1, coord2):
+        return GeodesicFallback(coord1, coord2)
+
 from config import DISEASE_KEYWORDS
+
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
@@ -138,6 +156,11 @@ class HospitalSearcher:
         self.cache = {}
         self.cache_ttl = 300  # 5 minutes TTL
         self.active_disease_query = "general"
+        self.already_found_ids = set()  # Track hospitals already discovered across radius expansions
+
+    def reset_found(self):
+        """Clears the already-found tracking for a new search session."""
+        self.already_found_ids = set()
 
     def set_disease_query(self, query: str):
         """Sets active disease or symptom filter (e.g., 'ear', 'heart', 'eye', 'kidney')."""
@@ -260,12 +283,18 @@ class HospitalSearcher:
         # Sort by distance ascending so the nearest hospital for that disease is Rank #1!
         results.sort(key=lambda x: x["distance"])
 
+        # Filter out hospitals already discovered in previous radius steps
+        new_results = [h for h in results if str(h.get("id", h.get("name", ""))) not in self.already_found_ids]
+        for h in new_results:
+            self.already_found_ids.add(str(h.get("id", h.get("name", ""))))
+
         latency_ms = round((time.time() - start_time) * 1000, 2)
         if results:
             self.cache[cache_key] = (results, time.time())
 
         return {
-            "targets": results,
+            "targets": results,            # All hospitals at this radius (for radar display)
+            "new_targets": new_results,     # Only NEW hospitals not yet shown
             "latency_ms": latency_ms,
             "error": None if results else f"No hospitals found for '{disease_key}'",
             "from_cache": False,

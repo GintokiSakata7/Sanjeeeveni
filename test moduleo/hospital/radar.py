@@ -19,16 +19,23 @@ class RadarCanvas:
 
     def __init__(self):
         self.sweep_angle = 0.0      # Degrees (0°..360°)
-        self.sweep_speed = 90.0     # Degrees per second (1 full rotation every 4 seconds)
+        self.sweep_speed = 120.0    # Degrees per second (1 full rotation every 3 seconds)
+        self.completed_full_scan = False
         self.font_degree = pygame.font.SysFont("Consolas", 11, bold=True)
         self.font_header = pygame.font.SysFont("Consolas", 14, bold=True)
 
     def update_sweep(self, dt: float):
         """Advances rotating sweep angle by delta time `dt`."""
+        prev_angle = self.sweep_angle
         self.sweep_angle = (self.sweep_angle + self.sweep_speed * dt) % 360.0
+        if self.sweep_angle < prev_angle:
+            self.completed_full_scan = True
 
-    def draw(self, surface: pygame.Surface, active_radius_str: str, target_count: int, is_locked: bool, status_msg: str):
-        """Draws complete radar background, concentric circles, sweep beam, and compass."""
+    def reset_full_scan_flag(self):
+        self.completed_full_scan = False
+
+    def draw(self, surface: pygame.Surface, active_radius_str: str, target_count: int, is_locked: bool, status_msg: str, displayed_radius: float = None, max_radius: float = None):
+        """Draws complete radar background, concentric circles, active range ring, sweep beam, and compass."""
         cx, cy, r = RADAR_CENTER_X, RADAR_CENTER_Y, RADAR_RADIUS_PX
 
         # 1. Canvas Outer Boundary Circle & Dark Fill
@@ -40,7 +47,18 @@ class RadarCanvas:
             sub_r = int(r * ratio)
             pygame.draw.circle(surface, COLOR_RADAR_GRID, (cx, cy), sub_r, 1)
 
+        # Active Search Radius Ring (Dynamic Cyan Ring matching displayed_radius)
+        if displayed_radius is not None and max_radius is not None and max_radius > 0:
+            active_ratio = min(displayed_radius / max_radius, 1.0)
+            active_px = int(r * active_ratio)
+            if active_px > 5:
+                # Cyan glowing search ring
+                s_ring = pygame.Surface((r * 2 + 10, r * 2 + 10), pygame.SRCALPHA)
+                pygame.draw.circle(s_ring, (0, 229, 255, 180), (r + 5, r + 5), active_px, 2)
+                surface.blit(s_ring, (cx - r - 5, cy - r - 5))
+
         # 3. Crosshair Grid Lines (N-S, E-W)
+
         pygame.draw.line(surface, COLOR_RADAR_GRID, (cx - r, cy), (cx + r, cy), 1)
         pygame.draw.line(surface, COLOR_RADAR_GRID, (cx, cy - r), (cx, cy + r), 1)
 
