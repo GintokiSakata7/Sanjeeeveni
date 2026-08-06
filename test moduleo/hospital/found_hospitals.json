@@ -1,0 +1,111 @@
+[
+    {
+        "id": 249790845,
+        "name": "SREE DEVICHANDRA ENT Hospital",
+        "address": "SREE DEVICHANDRA ENT Hospital, ShaShab Gutta Road, Mahbubnagar, Mahabubnagar_Urb",
+        "lat": 16.7482975,
+        "lon": 78.0034038,
+        "distance": 7421.5,
+        "bearing": 39.3,
+        "specialty": "ENT / Ear, Nose & Throat",
+        "diseases": [
+            "Ear Infection",
+            "Hearing Loss",
+            "Otitis",
+            "ENT Surgery"
+        ],
+        "phone": "+91-40-2300-1100",
+        "type": "Hospital"
+    },
+    {
+        "id": 246427280,
+        "name": "Yashoda ENT & Dental Hospital",
+        "address": "Yashoda ENT & Dental Hospital, Bayammathota - Shetty Complex Road, BAYAMMA THOTA",
+        "lat": 16.7528425,
+        "lon": 78.0033926,
+        "distance": 7815.3,
+        "bearing": 37.0,
+        "specialty": "ENT / Ear, Nose & Throat",
+        "diseases": [
+            "Ear Infection",
+            "Hearing Loss",
+            "Otitis",
+            "ENT Surgery"
+        ],
+        "phone": "+91-40-2300-1100",
+        "type": "Hospital"
+    },
+    {
+        "id": "Apollo Emergency & Heart Institute",
+        "name": "Apollo Emergency & Heart Institute",
+        "address": "Jubilee Hills, Road No 72, Hyderabad 500033",
+        "lat": 17.4156,
+        "lon": 78.4123,
+        "distance": 93056.9,
+        "bearing": 31.0,
+        "specialty": "Cardiology & Emergency Care",
+        "diseases": [
+            "Heart Attack",
+            "Stroke",
+            "Emergency Trauma",
+            "Cardiology"
+        ],
+        "phone": "+91-40-2360-7777",
+        "type": "Hospital"
+    },
+    {
+        "id": "Government ENT Hospital",
+        "name": "Government ENT Hospital",
+        "address": "Koti Main Rd, Koti, Hyderabad, Telangana 500095",
+        "lat": 17.3845,
+        "lon": 78.481,
+        "distance": 94251.2,
+        "bearing": 35.9,
+        "specialty": "ENT / Ear, Nose & Throat",
+        "diseases": [
+            "Ear Care",
+            "ENT Surgery",
+            "Hearing Loss",
+            "Sinusitis",
+            "Throat Care"
+        ],
+        "phone": "+91-40-2465-4422",
+        "type": "Hospital"
+    },
+    {
+        "id": "Royal Ear, Nose and Throat (ENT) Hospital",
+        "name": "Royal Ear, Nose and Throat (ENT) Hospital",
+        "address": "Chaderghat, Koti, Hyderabad, Telangana 500024",
+        "lat": 17.3848,
+        "lon": 78.4825,
+        "distance": 94372.2,
+        "bearing": 35.9,
+        "specialty": "ENT / Otolaryngology",
+        "diseases": [
+            "Ear Infection",
+            "Otology",
+            "ENT Trauma",
+            "Hearing Loss"
+        ],
+        "phone": "+91-40-2460-1122",
+        "type": "Hospital"
+    },
+    {
+        "id": "Yashoda Super Speciality Heart Institute",
+        "name": "Yashoda Super Speciality Heart Institute",
+        "address": "Alexander Road, Secunderabad, Hyderabad 500003",
+        "lat": 17.4399,
+        "lon": 78.4983,
+        "distance": 100307.3,
+        "bearing": 34.7,
+        "specialty": "Cardiology & Heart Surgery",
+        "diseases": [
+            "Heart Failure",
+            "Cardiac Arrest",
+            "Angioplasty",
+            "Cardiology"
+        ],
+        "phone": "+91-40-4567-4567",
+        "type": "Hospital"
+    }
+]

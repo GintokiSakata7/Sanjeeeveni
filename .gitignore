@@ -1,0 +1,82 @@
+# Dependencies
+node_modules/
+/.pnpm-debug.log*
+
+# Environment & Secret Files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
+*.pem
+*.key
+
+# Build and Output Directories
+/dist
+/build
+/out
+/.next
+/.expo
+/coverage
+/.nyc_output
+
+# Caches and Temporary Files
+.cache/
+.turbo/
+.eslintcache
+*.tsbuildinfo
+
+# Prisma & Database Files
+/generated/
+prisma/generated/
+*.db
+*.sqlite
+*.sqlite-journal
+
+# IDE, Editor & AI Tool Directories
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.claude/
+.windsurf/
+.agents/
+.gemini/
+
+# Operating System Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Python Caches & Environments
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+ENV/
+env/
+
+# Log Files
+*.log
+
+# Android & Flutter local properties
+**/local.properties
+**/GeneratedPluginRegistrant.*

@@ -1,0 +1,496 @@
+/* Modern Dark Theme CSS for AERO Emergency App */
+:root {
+    --bg-dark: #070B14;
+    --card-bg: rgba(21, 32, 54, 0.75);
+    --border-color: rgba(255, 255, 255, 0.1);
+    --primary-red: #FF2A54;
+    --red-glow: rgba(255, 42, 84, 0.4);
+    --amber-warning: #FFB800;
+    --green-success: #10B981;
+    --text-main: #F8FAFC;
+    --text-muted: #94A3B8;
+    --accent-blue: #38BDF8;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: 'Plus Jakarta Sans', 'Outfit', sans-serif;
+}
+
+body {
+    background-color: var(--bg-dark);
+    background-image: 
+        radial-gradient(at 10% 20%, rgba(255, 42, 84, 0.08) 0px, transparent 50%),
+        radial-gradient(at 90% 80%, rgba(56, 189, 248, 0.05) 0px, transparent 50%);
+    color: var(--text-main);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 16px;
+}
+
+.app-container {
+    width: 100%;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+/* Header */
+.app-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: var(--card-bg);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    margin-bottom: 16px;
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.logo-pulse {
+    font-size: 24px;
+    animation: pulseIcon 1.5s infinite alternate;
+}
+
+@keyframes pulseIcon {
+    from { transform: scale(1); }
+    to { transform: scale(1.2); }
+}
+
+.brand-title {
+    font-family: 'Outfit', sans-serif;
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    background: linear-gradient(90deg, #FF2A54, #FF7E95);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.brand-subtitle {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+/* Language Selector */
+.language-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.lang-label {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.lang-options {
+    display: flex;
+    gap: 4px;
+}
+
+.lang-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-color);
+    color: var(--text-muted);
+    padding: 6px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.lang-btn:hover {
+    border-color: var(--primary-red);
+    color: var(--text-main);
+}
+
+.lang-btn.active {
+    background: var(--primary-red);
+    color: #FFF;
+    border-color: var(--primary-red);
+    box-shadow: 0 0 10px var(--red-glow);
+}
+
+/* GPS Banner */
+.gps-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    padding: 8px 14px;
+    border-radius: 12px;
+    font-size: 12px;
+    color: var(--green-success);
+    margin-bottom: 16px;
+}
+
+.gps-dot {
+    width: 8px;
+    height: 8px;
+    background-color: var(--green-success);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--green-success);
+    animation: blink 1s infinite alternate;
+}
+
+@keyframes blink {
+    from { opacity: 0.3; }
+    to { opacity: 1; }
+}
+
+.gps-coords {
+    margin-left: auto;
+    font-family: monospace;
+    color: var(--text-muted);
+}
+
+/* Mode Tabs */
+.mode-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.mode-tab {
+    flex: 1;
+    padding: 12px;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-muted);
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.mode-tab.active {
+    background: rgba(255, 42, 84, 0.15);
+    border-color: var(--primary-red);
+    color: #FFF;
+}
+
+.badge-recommended {
+    background: var(--amber-warning);
+    color: #000;
+    font-size: 9px;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 6px;
+    text-transform: uppercase;
+}
+
+/* Input Cards */
+.input-card {
+    background: var(--card-bg);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    padding: 20px;
+    margin-bottom: 16px;
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* Microphone Button & Visualizer */
+.mic-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px 0;
+}
+
+.mic-button {
+    position: relative;
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #FF2A54, #D90429);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-shadow: 0 0 30px var(--red-glow);
+    transition: transform 0.2s ease;
+}
+
+.mic-button:hover {
+    transform: scale(1.05);
+}
+
+.mic-button.listening {
+    animation: micPulse 1.2s infinite ease-out;
+}
+
+@keyframes micPulse {
+    0% { box-shadow: 0 0 0 0 rgba(255, 42, 84, 0.7); }
+    70% { box-shadow: 0 0 0 25px rgba(255, 42, 84, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(255, 42, 84, 0); }
+}
+
+.mic-icon {
+    font-size: 38px;
+    z-index: 2;
+}
+
+.mic-status-text {
+    margin-top: 14px;
+    font-size: 13px;
+    color: var(--text-muted);
+    text-align: center;
+}
+
+/* Text & Transcript Box */
+.input-label {
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+textarea {
+    width: 100%;
+    min-height: 90px;
+    background: rgba(10, 15, 29, 0.8);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 12px;
+    color: var(--text-main);
+    font-size: 14px;
+    resize: none;
+    outline: none;
+}
+
+textarea:focus {
+    border-color: var(--primary-red);
+    box-shadow: 0 0 10px rgba(255, 42, 84, 0.2);
+}
+
+/* Quick Symptom Chips */
+.quick-chips-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin: 12px 0 6px 0;
+}
+
+.quick-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.chip {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--border-color);
+    color: var(--text-main);
+    padding: 6px 12px;
+    font-size: 12px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.chip:hover {
+    background: rgba(255, 42, 84, 0.2);
+    border-color: var(--primary-red);
+}
+
+/* Trigger Button */
+.action-container {
+    margin-bottom: 24px;
+}
+
+.sos-btn {
+    position: relative;
+    width: 100%;
+    padding: 18px;
+    border-radius: 16px;
+    border: none;
+    background: linear-gradient(90deg, #FF2A54, #E60033);
+    color: #FFF;
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    cursor: pointer;
+    overflow: hidden;
+    box-shadow: 0 8px 30px var(--red-glow);
+    transition: transform 0.2s ease;
+}
+
+.sos-btn:hover {
+    transform: translateY(-2px);
+}
+
+/* Loading Card */
+.loading-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    padding: 30px;
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid rgba(255, 42, 84, 0.2);
+    border-top-color: var(--primary-red);
+    border-radius: 50%;
+    margin: 0 auto 16px auto;
+    animation: spin 1s infinite linear;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Results & Triage Card */
+.result-card {
+    background: var(--card-bg);
+    backdrop-filter: blur(16px);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    overflow: hidden;
+    margin-bottom: 24px;
+    animation: fadeIn 0.4s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.result-header {
+    padding: 20px;
+    background: linear-gradient(180deg, rgba(255, 42, 84, 0.2), transparent);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.severity-pill {
+    display: inline-block;
+    background: var(--primary-red);
+    color: #FFF;
+    font-size: 11px;
+    font-weight: 800;
+    padding: 4px 10px;
+    border-radius: 12px;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+}
+
+.orchestration-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 16px;
+}
+
+.orch-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: rgba(10, 15, 29, 0.6);
+    border: 1px solid var(--border-color);
+    padding: 12px 16px;
+    border-radius: 14px;
+}
+
+.orch-icon {
+    font-size: 24px;
+}
+
+.orch-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.orch-title {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+}
+
+.orch-meta {
+    font-size: 12px;
+    color: var(--accent-blue);
+    margin-top: 2px;
+}
+
+/* First Aid Guidance */
+.first-aid-section {
+    padding: 20px;
+    border-top: 1px solid var(--border-color);
+}
+
+.first-aid-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+}
+
+.audio-btn {
+    background: rgba(56, 189, 248, 0.15);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    color: var(--accent-blue);
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.first-aid-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.fa-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-color);
+    padding: 12px 14px;
+    border-radius: 12px;
+    font-size: 14px;
+}
+
+.fa-num {
+    background: var(--primary-red);
+    color: #FFF;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 800;
+    flex-shrink: 0;
+}
