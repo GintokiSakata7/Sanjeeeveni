@@ -20,7 +20,10 @@ import {
   X,
   Phone,
   Mail,
-  ShieldCheck
+  ShieldCheck,
+  Eye,
+  EyeOff,
+  Lock
 } from 'lucide-react';
 
 export default function HospitalPortalDashboard({ hospitalSession, onLogout, onBackToCitizen }) {
@@ -57,6 +60,10 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
   const [showDoctorModal, setShowDoctorModal] = useState(false);
   const [showDriverModal, setShowDriverModal] = useState(false);
   const [showAmbulanceModal, setShowAmbulanceModal] = useState(false);
+
+  // Password visibility toggles
+  const [showDoctorPwd, setShowDoctorPwd] = useState(false);
+  const [showDriverPwd, setShowDriverPwd] = useState(false);
 
   // Standard 12-hour time formatter for standard time picker input
   const formatTime12h = (time24) => {
@@ -166,7 +173,6 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
       // Strip internal-only time picker fields, and null out optional empty strings
       const { shift_start, shift_end, ...driverPayload } = driverForm;
       if (!driverPayload.email) driverPayload.email = null;
-      if (!driverPayload.password) driverPayload.password = null;
       const res = await fetch('http://localhost:8000/api/v1/hms/drivers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -718,6 +724,29 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
               </div>
 
               <div className="form-field">
+                <label><Lock size={14} style={{display:'inline',verticalAlign:'middle',marginRight:4}} />Login Password *</label>
+                <div style={{position:'relative'}}>
+                  <input
+                    type={showDoctorPwd ? 'text' : 'password'}
+                    placeholder="Set a strong password"
+                    value={doctorForm.password}
+                    onChange={(e) => setDoctorForm({ ...doctorForm, password: e.target.value })}
+                    required
+                    minLength={6}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowDoctorPwd(!showDoctorPwd)}
+                    style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',cursor:'pointer',color:'#94a3b8',padding:0}}
+                    tabIndex={-1}
+                  >
+                    {showDoctorPwd ? <EyeOff size={16}/> : <Eye size={16}/>}
+                  </button>
+                </div>
+                <span className="text-[10px] text-slate-500 mt-1 block">This password will be used by the doctor to log in to their staff portal / mobile app.</span>
+              </div>
+
+              <div className="form-field">
                 <label>Duty Status *</label>
                 <select
                   value={doctorForm.status}
@@ -827,6 +856,29 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
                     required
                   />
                 </div>
+              </div>
+
+              <div className="form-field">
+                <label><Lock size={14} style={{display:'inline',verticalAlign:'middle',marginRight:4}} />Login Password *</label>
+                <div style={{position:'relative'}}>
+                  <input
+                    type={showDriverPwd ? 'text' : 'password'}
+                    placeholder="Set a strong password"
+                    value={driverForm.password}
+                    onChange={(e) => setDriverForm({ ...driverForm, password: e.target.value })}
+                    required
+                    minLength={6}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowDriverPwd(!showDriverPwd)}
+                    style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',cursor:'pointer',color:'#94a3b8',padding:0}}
+                    tabIndex={-1}
+                  >
+                    {showDriverPwd ? <EyeOff size={16}/> : <Eye size={16}/>}
+                  </button>
+                </div>
+                <span className="text-[10px] text-slate-500 mt-1 block">This password will be used by the driver to log in to their mobile app.</span>
               </div>
 
               <div className="form-field">

@@ -124,7 +124,7 @@ def create_driver(payload: DriverCreatePayload, db: Session = Depends(get_sessio
         )
 
     driver_id = f"DRV-{uuid.uuid4().hex[:8].upper()}"
-    pwd_hash = get_password_hash(payload.password) if payload.password else None
+    pwd_hash = get_password_hash(payload.password)
 
     driver = Driver(
         id=driver_id,

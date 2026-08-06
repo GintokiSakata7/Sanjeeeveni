@@ -40,7 +40,7 @@ class DriverCreatePayload(BaseModel):
     contact_number: str = Field(..., min_length=8)
     license_number: str = Field(..., min_length=3)
     email: Optional[EmailStr] = None
-    password: Optional[str] = None
+    password: str = Field(..., min_length=6)
     status: str = Field(default="Available")
     shift_timing: Optional[str] = Field(default="Morning Shift (08:00 AM - 04:00 PM)")
 
