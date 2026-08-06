@@ -1,16 +1,18 @@
 """
-AERO - AI Emergency Response Orchestrator FastAPI Backend
+AERO - AI Emergency Response Orchestrator & Hospital Management FastAPI Backend
 Pure Python SQLModel + PostgreSQL / Supabase Database Architecture.
 """
 
 import uuid
 import base64
+import os
 from datetime import datetime
 from typing import List, Dict, Any
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, status, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 from sqlmodel import Session, select
 
@@ -21,6 +23,12 @@ from db_models import (
 )
 from ai_engine import analyze_emergency, analyze_audio_emergency
 
+# Import Hospital Registration & Super Admin module entities & routes
+import app.models.hospital_models  # Ensures SQLModel registers hospital tables
+from app.api.v1.hospital_routes import router as hospital_v1_router
+from app.api.v1.admin_routes import router as admin_v1_router
+from app.core.config import settings
+
 load_dotenv()
 
 @asynccontextmanager
@@ -28,14 +36,15 @@ async def lifespan(app: FastAPI):
     """Initializes PostgreSQL database tables natively via SQLModel on application startup"""
     try:
         create_db_and_tables()
+        print("SQLModel DB & Tables initialized successfully.")
     except Exception as e:
         print(f"PostgreSQL connection note: {e}")
     yield
 
 app = FastAPI(
-    title="AERO AI Emergency Response Engine",
-    version="1.0.0",
-    description="FastAPI + SQLModel + AI Intent Triage Backend Service.",
+    title="Sanjeevani (AERO) AI Emergency & Hospital Orchestrator Engine",
+    version="2.0.0",
+    description="FastAPI + SQLModel + AI Emergency Triage + Hospital Multi-Step Registration API.",
     lifespan=lifespan
 )
 
@@ -48,14 +57,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Serve uploaded verification documents locally when Supabase Storage is offline
+os.makedirs(settings.LOCAL_UPLOAD_DIR, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=settings.LOCAL_UPLOAD_DIR), name="uploads")
+
+# Mount API V1 Routers
+app.include_router(hospital_v1_router, prefix="/api/v1")
+app.include_router(admin_v1_router, prefix="/api/v1")
+
+
 @app.get("/")
 def root():
     return {
         "status": "online",
-        "service": "AERO AI Emergency Triage & Intent Classifier (FastAPI + SQLModel)",
-        "version": "1.0.0",
+        "service": "Sanjeevani (AERO) AI Emergency Triage & Hospital Management Engine",
+        "version": "2.0.0",
         "health_check": "/api/emergency/health",
-        "docs": "/docs"
+        "hospital_api_docs": "/docs"
     }
 
 @app.get("/api/emergency/health")

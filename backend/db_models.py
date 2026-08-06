@@ -10,6 +10,9 @@ from datetime import datetime
 from pydantic import BaseModel
 from sqlmodel import SQLModel, Field, JSON, Column
 
+# Import real multi-tenant SQLModel models for Hospital, Doctor, Ambulance
+from app.models.hospital_models import Hospital, Doctor, Ambulance
+
 class RoleEnum(str, Enum):
     CITIZEN = "CITIZEN"
     HOSPITAL_ADMIN = "HOSPITAL_ADMIN"
@@ -45,38 +48,6 @@ class User(SQLModel, table=True):
     blood_group: Optional[str] = None
     emergency_contact: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
-
-class Hospital(SQLModel, table=True):
-    __tablename__ = "hospitals"
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
-    name: str
-    address: str
-    latitude: float
-    longitude: float
-    contact_phone: str
-    total_beds: int = Field(default=50)
-    available_beds: int = Field(default=20)
-    icu_beds: int = Field(default=5)
-    available_icu: int = Field(default=2)
-
-class Doctor(SQLModel, table=True):
-    __tablename__ = "doctors"
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
-    user_id: str = Field(foreign_key="users.id")
-    hospital_id: Optional[str] = Field(default=None, foreign_key="hospitals.id")
-    specialization: str
-    is_available: bool = Field(default=True)
-
-class Ambulance(SQLModel, table=True):
-    __tablename__ = "ambulances"
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
-    driver_user_id: str = Field(foreign_key="users.id")
-    hospital_id: Optional[str] = Field(default=None, foreign_key="hospitals.id")
-    vehicle_number: str = Field(unique=True)
-    equipment_level: str = Field(default="ALS")
-    current_lat: Optional[float] = None
-    current_lng: Optional[float] = None
-    status: str = Field(default="IDLE")
 
 class CommunityWorker(SQLModel, table=True):
     __tablename__ = "community_workers"

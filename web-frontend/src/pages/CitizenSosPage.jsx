@@ -6,8 +6,18 @@ import CategoryPresets from '../components/CategoryPresets';
 import TriageResultCard from '../components/TriageResultCard';
 import { sendSosRequest } from '../services/api';
 
-export default function CitizenSosPage() {
-  const [selectedLang, setSelectedLang] = useState("auto"); // "auto", "en-IN", "te-IN", "hi-IN"
+export default function CitizenSosPage({
+  selectedLang: propSelectedLang,
+  setSelectedLang: propSetSelectedLang,
+  onOpenHospitalRegistration,
+  onOpenHospitalLogin,
+  onOpenAdminLogin
+}) {
+
+  const [internalLang, setInternalLang] = useState("auto");
+  const selectedLang = propSelectedLang || internalLang;
+  const setSelectedLang = propSetSelectedLang || setInternalLang;
+
   const [inputMode, setInputMode] = useState("voice"); // "voice" | "type"
   const [isListening, setIsListening] = useState(false);
   
@@ -172,7 +182,14 @@ export default function CitizenSosPage() {
 
   return (
     <div className="dashboard-root">
-      <Header selectedLang={selectedLang} setSelectedLang={setSelectedLang} />
+      <Header
+        selectedLang={selectedLang}
+        setSelectedLang={setSelectedLang}
+        onOpenHospitalRegistration={onOpenHospitalRegistration}
+        onOpenHospitalLogin={onOpenHospitalLogin}
+        onOpenAdminLogin={onOpenAdminLogin}
+      />
+
 
       <div className="dashboard-grid">
         <div className="intake-panel">
