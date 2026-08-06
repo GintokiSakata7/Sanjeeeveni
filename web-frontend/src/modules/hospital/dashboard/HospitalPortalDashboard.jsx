@@ -300,6 +300,37 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
     }
   };
 
+  // Inline Status Update Handlers
+  const handleUpdateDoctorStatus = async (doctorId, newStatus, doctorName) => {
+    try {
+      const res = await fetch(`http://localhost:8000/api/v1/hms/doctors/${doctorId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+      });
+      if (!res.ok) throw new Error('Failed to update status');
+      triggerToast(`Dr. ${doctorName} → ${newStatus}`);
+      loadData();
+    } catch (err) {
+      triggerToast(err.message, 'error');
+    }
+  };
+
+  const handleUpdateDriverStatus = async (driverId, newStatus, driverName) => {
+    try {
+      const res = await fetch(`http://localhost:8000/api/v1/hms/drivers/${driverId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+      });
+      if (!res.ok) throw new Error('Failed to update status');
+      triggerToast(`${driverName} → ${newStatus}`);
+      loadData();
+    } catch (err) {
+      triggerToast(err.message, 'error');
+    }
+  };
+
   return (
     <div className="hms-portal-root font-sans">
       {/* Toast Notification */}
@@ -541,6 +572,17 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
                         <span className={`badge-pill ${doc.status.toLowerCase().replace(' ', '-')}`}>
                           {doc.status}
                         </span>
+                      </td>
+                      <td>
+                        <select
+                          className={`status-inline-select ${doc.status.toLowerCase().replace(/\s/g, '-')}`}
+                          value={doc.status}
+                          onChange={(e) => handleUpdateDoctorStatus(doc.id, e.target.value, doc.name)}
+                        >
+                          <option value="Available">✅ Available</option>
+                          <option value="In Surgery">🔴 In Surgery</option>
+                          <option value="On Leave">🟡 On Leave</option>
+                        </select>
                       </td>
                       <td>
                         <span className="text-xs font-mono text-cyan-300 bg-cyan-950/60 border border-cyan-800/80 px-2 py-1 rounded-md">

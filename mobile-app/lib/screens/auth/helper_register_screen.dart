@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../services/api_service.dart';
 import '../../services/preferences_service.dart';
 import '../helper/helper_dashboard_screen.dart';
 import 'unified_login_screen.dart';
@@ -11,14 +12,11 @@ class HelperRegisterScreen extends StatefulWidget {
 }
 
 class _HelperRegisterScreenState extends State<HelperRegisterScreen> {
-  final TextEditingController _nameController =
-      TextEditingController(text: 'Anjali Devi');
-  final TextEditingController _phoneController =
-      TextEditingController(text: '+91 98490 12345');
-  final TextEditingController _locationController =
-      TextEditingController(text: 'Banjara Hills Sector 4, Hyderabad');
-  final TextEditingController _certIdController =
-      TextEditingController(text: 'ASHA-TS-GOV-2024-8819');
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _locationController = TextEditingController();
+  final TextEditingController _certIdController = TextEditingController();
 
   String _selectedRole = 'ASHA Community Health Worker';
   bool _liveLocationAccess = true;
@@ -27,7 +25,7 @@ class _HelperRegisterScreenState extends State<HelperRegisterScreen> {
   bool _traumaSkill = true;
   bool _chokingSkill = true;
   bool _isUploadingCert = false;
-  String _uploadedFileName = 'medical_asha_certification_2026.pdf';
+  String _uploadedFileName = '';
   bool _isLoading = false;
 
   final List<String> _helperRoles = [
@@ -69,7 +67,7 @@ class _HelperRegisterScreenState extends State<HelperRegisterScreen> {
     });
   }
 
-  void _handleRegister() {
+  Future<void> _handleRegister() async {
     if (!_liveLocationAccess) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -82,29 +80,100 @@ class _HelperRegisterScreenState extends State<HelperRegisterScreen> {
       return;
     }
 
-    setState(() => _isLoading = true);
-    final prefs = PreferencesService();
-    prefs.setHelperLiveLocation(true);
-    prefs.login(
-      role: 'helper',
-      userId: _phoneController.text.trim(),
-      userName: _nameController.text.trim(),
-    );
+    final name = _nameController.text.trim();
+    final phone = _phoneController.text.trim();
+    final password = _passwordController.text.trim();
 
-    Future.delayed(const Duration(milliseconds: 700), () {
+    if (name.isEmpty || phone.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please fill in Name, Phone and Password.'),
+          backgroundColor: Color(0xFFDC2626),
+        ),
+      );
+      return;
+    }
+
+    if (password.length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Password must be at least 6 characters.'),
+          backgroundColor: Color(0xFFDC2626),
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    // Collect skills
+    final skills = <String>[];
+    if (_cprSkill) skills.add('CPR Certified');
+    if (_bleedingSkill) skills.add('Bleeding & Tourniquet Control');
+    if (_traumaSkill) skills.add('Trauma & Fracture Splinting');
+    if (_chokingSkill) skills.add('Choking & Airway Relief');
+
+    try {
+      final api = ApiService();
+      final response = await api.registerHelper(
+        name: name,
+        phone: phone,
+        password: password,
+        location: _locationController.text.trim().isNotEmpty
+            ? _locationController.text.trim()
+            : null,
+        roleType: _selectedRole,
+        certId: _certIdController.text.trim().isNotEmpty
+            ? _certIdController.text.trim()
+            : null,
+        skills: skills,
+      );
+
+      final prefs = PreferencesService();
+      prefs.setHelperLiveLocation(true);
+      await prefs.login(
+        role: 'helper',
+        userId: response['user_id'] ?? '',
+        userName: response['user_name'] ?? name,
+        token: response['token'] ?? '',
+        contactNumber: response['contact_number'] ?? phone,
+        location: response['location'] ?? _locationController.text.trim(),
+        roleType: response['role_type'] ?? _selectedRole,
+      );
+
       if (mounted) {
         setState(() => _isLoading = false);
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(
             builder: (_) => HelperDashboardScreen(
-              helperName: _nameController.text.trim(),
-              helperLocation: _locationController.text.trim(),
+              helperName: response['user_name'] ?? name,
+              helperLocation: response['location'] ?? _locationController.text.trim(),
             ),
           ),
           (route) => false,
         );
       }
-    });
+    } on ApiException catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.message),
+            backgroundColor: const Color(0xFFDC2626),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Connection failed. Is the backend server running?'),
+            backgroundColor: Color(0xFFDC2626),
+          ),
+        );
+      }
+    }
   }
 
   @override

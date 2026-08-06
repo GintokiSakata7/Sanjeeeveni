@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../services/api_service.dart';
 import '../../services/preferences_service.dart';
 import '../../widgets/app_toast.dart';
 import '../doctor/doctor_dashboard_screen.dart';
@@ -24,8 +25,7 @@ class UnifiedLoginScreen extends StatefulWidget {
 class _UnifiedLoginScreenState extends State<UnifiedLoginScreen> {
   late UserRole _selectedRole;
   final TextEditingController _idController = TextEditingController();
-  final TextEditingController _pwdController =
-      TextEditingController(text: '••••••••');
+  final TextEditingController _pwdController = TextEditingController();
   bool _isLoading = false;
   DateTime? _lastBackPressTime;
 
@@ -33,79 +33,137 @@ class _UnifiedLoginScreenState extends State<UnifiedLoginScreen> {
   void initState() {
     super.initState();
     _selectedRole = widget.initialRole;
-    _updateDefaultCredentials();
+    _updatePlaceholderHints();
   }
 
-  void _updateDefaultCredentials() {
-    switch (_selectedRole) {
-      case UserRole.doctor:
-        _idController.text = 'DOC-MCI-48921';
-        break;
-      case UserRole.driver:
-        _idController.text = 'DRV-108-HYD-04';
-        break;
-      case UserRole.helper:
-        _idController.text = '+91 98490 12345';
-        break;
-    }
+  void _updatePlaceholderHints() {
+    // Clear fields when switching roles (no more hardcoded fake credentials)
+    _idController.clear();
+    _pwdController.clear();
   }
 
   void _handleRoleChange(UserRole role) {
     setState(() {
       _selectedRole = role;
-      _updateDefaultCredentials();
+      _updatePlaceholderHints();
     });
   }
 
   Future<void> _handleLogin() async {
+    final identifier = _idController.text.trim();
+    final password = _pwdController.text.trim();
+
+    if (identifier.isEmpty || password.isEmpty) {
+      _showError('Please enter your ID/email and password.');
+      return;
+    }
+
     setState(() => _isLoading = true);
 
-    final prefs = PreferencesService();
-    String roleString;
-    String userName;
-    Widget destination;
+    try {
+      final api = ApiService();
+      final prefs = PreferencesService();
+      Map<String, dynamic> response;
+      Widget destination;
 
-    switch (_selectedRole) {
-      case UserRole.doctor:
-        roleString = 'doctor';
-        userName = 'Dr. Rajesh Sharma, MD';
-        destination = DoctorDashboardScreen(
-          doctorName: userName,
+      switch (_selectedRole) {
+        case UserRole.doctor:
+          response = await api.loginDoctor(
+            identifier: identifier,
+            password: password,
+          );
+          await prefs.login(
+            role: 'doctor',
+            userId: response['user_id'] ?? '',
+            userName: response['user_name'] ?? 'Doctor',
+            token: response['token'] ?? '',
+            hospitalId: response['hospital_id'] ?? '',
+            hospitalName: response['hospital_name'] ?? '',
+            specialization: response['specialization'] ?? '',
+            contactNumber: response['contact_number'] ?? '',
+            email: response['email'] ?? '',
+            shiftTiming: response['shift_timing'] ?? '',
+          );
+          destination = DoctorDashboardScreen(
+            doctorName: response['user_name'] ?? 'Doctor',
+            hospitalName: response['hospital_name'] ?? 'Hospital',
+          );
+          break;
+
+        case UserRole.driver:
+          response = await api.loginDriver(
+            identifier: identifier,
+            password: password,
+          );
+          await prefs.login(
+            role: 'driver',
+            userId: response['user_id'] ?? '',
+            userName: response['user_name'] ?? 'Driver',
+            token: response['token'] ?? '',
+            hospitalId: response['hospital_id'] ?? '',
+            hospitalName: response['hospital_name'] ?? '',
+            contactNumber: response['contact_number'] ?? '',
+            email: response['email'] ?? '',
+            badgeId: response['badge_id'] ?? response['user_id'] ?? '',
+            licenseNumber: response['license_number'] ?? '',
+            shiftTiming: response['shift_timing'] ?? '',
+          );
+          destination = DriverDashboardScreen(
+            driverName: response['user_name'] ?? 'Driver',
+            badgeId: response['badge_id'] ?? response['user_id'] ?? '',
+          );
+          break;
+
+        case UserRole.helper:
+          response = await api.loginHelper(
+            phone: identifier,
+            password: password,
+          );
+          await prefs.login(
+            role: 'helper',
+            userId: response['user_id'] ?? '',
+            userName: response['user_name'] ?? 'Helper',
+            token: response['token'] ?? '',
+            contactNumber: response['contact_number'] ?? '',
+            location: response['location'] ?? '',
+            roleType: response['role_type'] ?? '',
+          );
+          destination = HelperDashboardScreen(
+            helperName: response['user_name'] ?? 'Helper',
+            helperLocation: response['location'] ?? 'Unknown Location',
+          );
+          break;
+      }
+
+      if (mounted) {
+        setState(() => _isLoading = false);
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => destination),
+          (route) => false,
         );
-        break;
-      case UserRole.driver:
-        roleString = 'driver';
-        userName = 'Suresh Kumar';
-        destination = DriverDashboardScreen(
-          driverName: userName,
-        );
-        break;
-      case UserRole.helper:
-        roleString = 'helper';
-        userName = 'Anjali Devi (ASHA Worker)';
-        destination = HelperDashboardScreen(
-          helperName: userName,
-          helperLocation: 'Banjara Hills Sector 4, Hyderabad',
-        );
-        break;
+      }
+    } on ApiException catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        _showError(e.message);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        _showError('Connection failed. Is the backend server running?');
+      }
     }
+  }
 
-    // Save session permanently to disk
-    await prefs.login(
-      role: roleString,
-      userId: _idController.text.trim(),
-      userName: userName,
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: const Color(0xFFDC2626),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 4),
+      ),
     );
-
-    await Future.delayed(const Duration(milliseconds: 400));
-
-    if (mounted) {
-      setState(() => _isLoading = false);
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => destination),
-        (route) => false,
-      );
-    }
   }
 
   @override
@@ -295,7 +353,11 @@ class _UnifiedLoginScreenState extends State<UnifiedLoginScreen> {
                     borderRadius: BorderRadius.circular(12),
                     borderSide: const BorderSide(color: Color(0xFF334155)),
                   ),
-                  hintText: 'Enter password',
+                  hintText: _selectedRole == UserRole.doctor
+                      ? 'Enter password (e.g. DocPassword123!)'
+                      : _selectedRole == UserRole.driver
+                          ? 'Enter password (e.g. DriverPassword123!)'
+                          : 'Enter password',
                   hintStyle: const TextStyle(color: Color(0xFF64748B)),
                 ),
               ),

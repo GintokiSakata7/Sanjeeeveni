@@ -99,6 +99,19 @@ def delete_doctor(doctor_id: str, db: Session = Depends(get_session)):
     doctor = db.exec(select(Doctor).where(Doctor.id == doctor_id)).first()
     if not doctor:
         raise HTTPException(status_code=404, detail="Doctor record not found")
+
+    # Nullify any SOS request references to avoid FK constraint violation
+    try:
+        from app.models.hospital_models import SOSRequest
+        sos_refs = db.exec(
+            select(SOSRequest).where(SOSRequest.assigned_doctor_id == doctor_id)
+        ).all()
+        for sos in sos_refs:
+            sos.assigned_doctor_id = None
+            db.add(sos)
+    except Exception:
+        pass  # Table may not exist yet
+
     db.delete(doctor)
     db.commit()
     return {"success": True, "message": f"Doctor {doctor.name} deleted successfully"}

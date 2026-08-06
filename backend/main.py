@@ -29,6 +29,7 @@ import app.models.hospital_models  # Ensures SQLModel registers hospital tables
 from app.api.v1.hospital_routes import router as hospital_v1_router
 from app.api.v1.admin_routes import router as admin_v1_router
 from app.api.v1.hms_routes import router as hms_v1_router
+from app.api.v1.mobile_auth_routes import router as mobile_auth_v1_router
 from app.core.config import settings
 
 load_dotenv()
@@ -67,6 +68,7 @@ app.mount("/uploads", StaticFiles(directory=settings.LOCAL_UPLOAD_DIR), name="up
 app.include_router(hospital_v1_router, prefix="/api/v1")
 app.include_router(admin_v1_router, prefix="/api/v1")
 app.include_router(hms_v1_router, prefix="/api/v1")
+app.include_router(mobile_auth_v1_router, prefix="/api/v1")
 from app.api.v1.sos_routing_routes import router as sos_routing_router
 app.include_router(sos_routing_router, prefix="/api/v1")
 
