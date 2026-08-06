@@ -5,6 +5,9 @@ import VoiceIntakeCard from '../components/VoiceIntakeCard';
 import CategoryPresets from '../components/CategoryPresets';
 import TriageResultCard from '../components/TriageResultCard';
 import { sendSosRequest, sendAudioSosRequest } from '../services/api';
+import RadarCanvas from '../components/RadarCanvas';
+import HospitalResponsePanel from '../components/HospitalResponsePanel';
+import useRadarSearch from '../hooks/useRadarSearch';
 
 export default function CitizenSosPage({
   selectedLang: propSelectedLang,
@@ -32,6 +35,9 @@ export default function CitizenSosPage({
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const accumulatedRef = useRef("");
+
+  // Full radar search hook
+  const radar = useRadarSearch();
 
   // Initialize GPS Coordinates
   useEffect(() => {
@@ -190,6 +196,9 @@ export default function CitizenSosPage({
     setLoading(true);
     setTriageResult(null);
 
+    // Start the full radar search (fetches ALL hospitals, begins progressive scan)
+    radar.startSearch(gps.lat, gps.lng);
+
     try {
       let data;
       // If we recorded audio, send high-precision audio blob to Whisper Large v3 backend
@@ -240,6 +249,9 @@ export default function CitizenSosPage({
     }
   };
 
+  // Prepare discovered IDs for radar canvas
+  const discoveredIds = radar.discoveredHospitals.map(h => h.id);
+
   return (
     <div className="dashboard-root">
       <Header
@@ -275,6 +287,22 @@ export default function CitizenSosPage({
           <button className="big-sos-btn" onClick={submitSOS}>
             🚨 TRANSMIT SOS SIGNAL
           </button>
+
+          {/* Hospital Response Panel — Left side with YES/NO cards */}
+          <HospitalResponsePanel
+            discoveredHospitals={radar.discoveredHospitals}
+            responses={radar.responses}
+            onAccept={radar.acceptHospital}
+            onReject={radar.rejectHospital}
+            isSearchActive={radar.isSearchActive}
+            finalHospital={radar.finalHospital}
+            currentRadius={radar.currentRadius}
+            totalCount={radar.totalCount}
+            pendingCount={radar.pendingCount}
+            acceptedCount={radar.acceptedCount}
+            rejectedCount={radar.rejectedCount}
+            notifications={radar.notifications}
+          />
         </div>
 
         <div className="orchestrator-panel">
@@ -285,6 +313,21 @@ export default function CitizenSosPage({
             loading={loading}
             speakFirstAid={speakFirstAid}
           />
+          
+          {/* Radar Canvas — Bottom right */}
+          <div className="radar-canvas-wrapper">
+            <RadarCanvas
+              allHospitals={radar.allHospitals}
+              discoveredIds={discoveredIds}
+              responses={radar.responses}
+              currentRadius={radar.currentRadius}
+              maxRadius={radar.RADIUS_STEPS[radar.RADIUS_STEPS.length - 1]}
+              isScanning={radar.isSearchActive}
+              onSweepDiscover={radar.discoverHospital}
+              getUndiscoveredInRadius={radar.getUndiscoveredInRadius}
+              finalHospitalId={radar.finalHospital ? radar.finalHospital.id : null}
+            />
+          </div>
         </div>
       </div>
     </div>
