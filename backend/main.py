@@ -1,4 +1,5 @@
 """
+# AERO - AI Emergency Response Orchestrator & Hospital Management FastAPI Backend
 AERO - AI Emergency Response Orchestrator & Hospital Management FastAPI Backend
 Pure Python SQLModel + PostgreSQL / Supabase Database Architecture.
 """
@@ -27,6 +28,7 @@ from ai_engine import analyze_emergency, analyze_audio_emergency
 import app.models.hospital_models  # Ensures SQLModel registers hospital tables
 from app.api.v1.hospital_routes import router as hospital_v1_router
 from app.api.v1.admin_routes import router as admin_v1_router
+from app.api.v1.hms_routes import router as hms_v1_router
 from app.core.config import settings
 
 load_dotenv()
@@ -64,6 +66,8 @@ app.mount("/uploads", StaticFiles(directory=settings.LOCAL_UPLOAD_DIR), name="up
 # Mount API V1 Routers
 app.include_router(hospital_v1_router, prefix="/api/v1")
 app.include_router(admin_v1_router, prefix="/api/v1")
+app.include_router(hms_v1_router, prefix="/api/v1")
+
 
 
 @app.get("/")

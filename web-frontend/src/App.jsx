@@ -2,22 +2,44 @@ import React, { useState } from 'react';
 import CitizenSosPage from './pages/CitizenSosPage';
 import HospitalLoginPage from './modules/auth/pages/HospitalLoginPage';
 import HospitalRegistrationPage from './modules/hospital/pages/HospitalRegistrationPage';
+import HospitalPortalDashboard from './modules/hospital/dashboard/HospitalPortalDashboard';
 import AdminLoginPage from './modules/admin/pages/AdminLoginPage';
 import AdminDashboardPage from './modules/admin/pages/AdminDashboardPage';
 
 export default function App() {
-  // Navigation View State: 'CITIZEN' | 'HOSPITAL_LOGIN' | 'HOSPITAL_REGISTRATION' | 'ADMIN_LOGIN' | 'ADMIN_DASHBOARD'
+  // Navigation View State: 'CITIZEN' | 'HOSPITAL_LOGIN' | 'HOSPITAL_REGISTRATION' | 'HOSPITAL_PORTAL' | 'ADMIN_LOGIN' | 'ADMIN_DASHBOARD'
   const [currentView, setCurrentView] = useState('CITIZEN');
   const [selectedLang, setSelectedLang] = useState('auto');
-  const [adminUser, setAdminUser] = useState(() => {
-    try {
-      const saved = localStorage.getItem('sanjeevani_admin_user');
-      return saved ? JSON.parse(saved) : null;
 
+  const [hospitalSession, setHospitalSession] = useState(() => {
+    try {
+      const saved = localStorage.getItem('sanjeevani_hospital_session');
+      return saved ? JSON.parse(saved) : null;
     } catch (e) {
       return null;
     }
   });
+
+  const [adminUser, setAdminUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem('sanjeevani_admin_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      return null;
+    }
+  });
+
+  const handleHospitalLoginSuccess = (sessionData) => {
+    setHospitalSession(sessionData);
+    localStorage.setItem('sanjeevani_hospital_session', JSON.stringify(sessionData));
+    setCurrentView('HOSPITAL_PORTAL');
+  };
+
+  const handleHospitalLogout = () => {
+    localStorage.removeItem('sanjeevani_hospital_session');
+    setHospitalSession(null);
+    setCurrentView('CITIZEN');
+  };
 
   const handleAdminLoginSuccess = (userData) => {
     setAdminUser(userData);
@@ -37,7 +59,7 @@ export default function App() {
         <CitizenSosPage
           selectedLang={selectedLang}
           setSelectedLang={setSelectedLang}
-          onOpenHospitalLogin={() => setCurrentView('HOSPITAL_LOGIN')}
+          onOpenHospitalLogin={() => setCurrentView(hospitalSession ? 'HOSPITAL_PORTAL' : 'HOSPITAL_LOGIN')}
           onOpenAdminLogin={() => setCurrentView(adminUser ? 'ADMIN_DASHBOARD' : 'ADMIN_LOGIN')}
         />
       )}
@@ -46,6 +68,7 @@ export default function App() {
         <HospitalLoginPage
           onBackToCitizen={() => setCurrentView('CITIZEN')}
           onStartRegistration={() => setCurrentView('HOSPITAL_REGISTRATION')}
+          onHospitalLoginSuccess={handleHospitalLoginSuccess}
         />
       )}
 
@@ -53,6 +76,14 @@ export default function App() {
         <HospitalRegistrationPage
           onBackToCitizen={() => setCurrentView('CITIZEN')}
           onOpenLoginModal={() => setCurrentView('HOSPITAL_LOGIN')}
+        />
+      )}
+
+      {currentView === 'HOSPITAL_PORTAL' && (
+        <HospitalPortalDashboard
+          hospitalSession={hospitalSession}
+          onLogout={handleHospitalLogout}
+          onBackToCitizen={() => setCurrentView('CITIZEN')}
         />
       )}
 

@@ -69,7 +69,14 @@ def create_db_and_tables():
         "ALTER TABLE hospitals ALTER COLUMN available_beds DROP NOT NULL;",
         "ALTER TABLE hospitals ALTER COLUMN icu_beds DROP NOT NULL;",
         "ALTER TABLE hospitals ALTER COLUMN ventilators DROP NOT NULL;",
-        "ALTER TABLE hospitals ALTER COLUMN id TYPE VARCHAR(64);"
+        "ALTER TABLE hospitals ALTER COLUMN id TYPE VARCHAR(64);",
+        # HMS Missing Columns
+        "ALTER TABLE doctors ADD COLUMN IF NOT EXISTS shift_timing VARCHAR(255) DEFAULT 'Morning Shift (08:00 AM - 04:00 PM)';",
+        "ALTER TABLE doctors ADD COLUMN IF NOT EXISTS name VARCHAR(255);",
+        "ALTER TABLE drivers ADD COLUMN IF NOT EXISTS shift_timing VARCHAR(255) DEFAULT 'Morning Shift (08:00 AM - 04:00 PM)';",
+        "ALTER TABLE drivers ADD COLUMN IF NOT EXISTS name VARCHAR(255);",
+        "ALTER TABLE ambulances ADD COLUMN IF NOT EXISTS assigned_driver_name VARCHAR(255);",
+        "ALTER TABLE ambulances ADD COLUMN IF NOT EXISTS vehicle_type VARCHAR(255) DEFAULT 'Basic';"
     ]
 
     for stmt in alter_statements:

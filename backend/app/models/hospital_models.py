@@ -1,6 +1,7 @@
 from enum import Enum
 from datetime import datetime
 from typing import Optional, List
+import uuid
 from sqlmodel import SQLModel, Field, Column, JSON, Relationship
 
 class HospitalTypeEnum(str, Enum):
@@ -155,8 +156,7 @@ class HospitalVerification(SQLModel, table=True):
     verified_at: datetime = Field(default_factory=datetime.utcnow)
 
 
-
-# --- Stubs for Future Extensibility ---
+# --- Hospital Management System (HMS) Models ---
 
 class Doctor(SQLModel, table=True):
     __tablename__ = "doctors"
@@ -165,12 +165,31 @@ class Doctor(SQLModel, table=True):
     id: str = Field(primary_key=True)
     hospital_id: str = Field(foreign_key="hospitals.id", index=True)
     name: str
-    specialty: str
-    mobile: str
-    mobile_login_code: Optional[str] = Field(default=None, unique=True)
-    password_hash: str
+    specialization: str
+    contact_number: str
+    email: str
+    status: str = Field(default="Available")  # Available, On Leave, In Surgery
+    shift_timing: Optional[str] = Field(default="Morning Shift (08:00 AM - 04:00 PM)")
+    password_hash: Optional[str] = Field(default=None)
     is_active: bool = Field(default=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class Driver(SQLModel, table=True):
+    __tablename__ = "drivers"
+    __table_args__ = {"extend_existing": True}
+
+    id: str = Field(primary_key=True)
+    hospital_id: str = Field(foreign_key="hospitals.id", index=True)
+    name: str
+    contact_number: str
+    license_number: str
+    email: Optional[str] = Field(default=None)
+    password_hash: Optional[str] = Field(default=None)
+    status: str = Field(default="Available")  # Available, Off Duty, Dispatched
+    shift_timing: Optional[str] = Field(default="Morning Shift (08:00 AM - 04:00 PM)")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
 
 
 class Ambulance(SQLModel, table=True):
@@ -179,12 +198,11 @@ class Ambulance(SQLModel, table=True):
 
     id: str = Field(primary_key=True)
     hospital_id: str = Field(foreign_key="hospitals.id", index=True)
-    vehicle_number: str
-    driver_name: str
-    driver_mobile: str
-    mobile_login_code: Optional[str] = Field(default=None, unique=True)
-    password_hash: str
-    is_available: bool = Field(default=True)
+    vehicle_registration: str
+    vehicle_type: str = Field(default="Basic")  # Basic, Advanced Life Support
+    assigned_driver_id: Optional[str] = Field(default=None, foreign_key="drivers.id")
+    assigned_driver_name: Optional[str] = Field(default=None)
+    status: str = Field(default="Available")  # Available, Dispatched, Maintenance
     current_lat: Optional[float] = Field(default=None)
     current_lng: Optional[float] = Field(default=None)
     created_at: datetime = Field(default_factory=datetime.utcnow)

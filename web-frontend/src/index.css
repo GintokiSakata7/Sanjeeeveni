@@ -3354,6 +3354,549 @@ body {
   box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
 }
 
+/* ==========================================
+   HMS PORTAL DASHBOARD STYLES
+   ========================================== */
+.hms-portal-root {
+  display: flex;
+  min-height: 100vh;
+  background: #090D16;
+  color: #F8FAFC;
+}
+
+.hms-sidebar {
+  width: 280px;
+  background: #0F172A;
+  border-right: 1px solid rgba(148, 163, 184, 0.15);
+  display: flex;
+  flex-direction: column;
+  padding: 24px 18px;
+  flex-shrink: 0;
+}
+
+.hms-sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+.hms-sidebar-brand .brand-icon-box {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: rgba(2, 132, 199, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hms-sidebar-brand h3 {
+  font-family: 'Outfit', sans-serif;
+  font-size: 16px;
+  font-weight: 800;
+  color: #F8FAFC;
+  line-height: 1.2;
+}
+
+.hms-badge {
+  font-size: 10px;
+  font-weight: 700;
+  color: #38BDF8;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.hms-nav-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 24px;
+  flex-grow: 1;
+}
+
+.hms-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: #94A3B8;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.hms-nav-item:hover {
+  background: rgba(30, 41, 59, 0.6);
+  color: #F8FAFC;
+}
+
+.hms-nav-item.active {
+  background: rgba(2, 132, 199, 0.18);
+  border-color: rgba(56, 189, 248, 0.35);
+  color: #38BDF8;
+}
+
+.hms-sidebar-footer {
+  padding-top: 16px;
+  border-top: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+.btn-hms-logout {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: #F87171;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-hms-logout:hover {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+.hms-main-content {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.hms-top-header {
+  height: 72px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+  background: #0F172A;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 32px;
+}
+
+.header-search {
+  position: relative;
+  width: 340px;
+}
+
+.header-search .search-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #64748B;
+}
+
+.header-search input {
+  width: 100%;
+  background: #1E293B;
+  border: 1px solid #334155;
+  color: #F8FAFC;
+  padding: 10px 14px 10px 40px;
+  border-radius: 12px;
+  font-size: 13px;
+}
+
+.header-search input:focus {
+  outline: none;
+  border-color: #38BDF8;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.btn-add-primary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(135deg, #0284C7, #0369A1);
+  color: #FFFFFF;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 10px 18px;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(2, 132, 199, 0.3);
+  transition: all 0.2s ease;
+}
+
+.btn-add-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(2, 132, 199, 0.45);
+}
+
+.admin-profile-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(30, 41, 59, 0.8);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  padding: 8px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.hms-view-body {
+  padding: 32px;
+  flex-grow: 1;
+  overflow-y: auto;
+}
+
+/* Metric Cards */
+.hms-metrics-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+}
+
+.hms-metric-card {
+  background: #0F172A;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 20px;
+  padding: 20px 24px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+}
+
+.hms-metric-card .card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: #94A3B8;
+}
+
+.hms-metric-card .card-value {
+  font-family: 'Outfit', sans-serif;
+  font-size: 32px;
+  font-weight: 800;
+  color: #F8FAFC;
+  margin: 10px 0 4px 0;
+}
+
+.hms-metric-card .card-value small {
+  font-size: 16px;
+  color: #64748B;
+}
+
+.hms-metric-card .card-sub {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.hms-two-col-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.hms-panel-box {
+  background: #0F172A;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 20px;
+  padding: 24px;
+}
+
+.hms-panel-box .panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.hms-panel-box .panel-header h4 {
+  font-family: 'Outfit', sans-serif;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.btn-link {
+  background: transparent;
+  border: none;
+  color: #38BDF8;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.panel-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.panel-list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  background: rgba(30, 41, 59, 0.5);
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+.panel-list-item strong {
+  display: block;
+  font-size: 13px;
+}
+
+.panel-list-item .sub {
+  font-size: 11px;
+  color: #64748B;
+}
+
+/* Tables */
+.hms-table-container {
+  background: #0F172A;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 20px;
+  padding: 24px;
+}
+
+.table-header-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.table-header-bar h3 {
+  font-family: 'Outfit', sans-serif;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.hms-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.hms-table th {
+  text-align: left;
+  padding: 12px 16px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #64748B;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid #1E293B;
+}
+
+.hms-table td {
+  padding: 16px;
+  font-size: 13px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+}
+
+.btn-table-del {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: #F87171;
+  padding: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.btn-table-del:hover {
+  background: rgba(239, 68, 68, 0.25);
+}
+
+/* Badge Pills */
+.badge-pill {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.badge-pill.available {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #34D399;
+}
+
+.badge-pill.in-surgery, .badge-pill.dispatched {
+  background: rgba(56, 189, 248, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  color: #38BDF8;
+}
+
+.badge-pill.on-leave, .badge-pill.off-duty, .badge-pill.maintenance {
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  color: #FBBF24;
+}
+
+.badge-pill.purple {
+  background: rgba(168, 85, 247, 0.15);
+  border: 1px solid rgba(168, 85, 247, 0.3);
+  color: #C084FC;
+}
+
+/* Modals */
+.hms-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(9, 13, 22, 0.85);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+  padding: 20px;
+}
+
+.hms-modal-card {
+  width: 100%;
+  max-width: 520px;
+  background: #0F172A;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 24px;
+  padding: 28px;
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+}
+
+.hms-modal-card .modal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.hms-modal-card .modal-head h3 {
+  font-family: 'Outfit', sans-serif;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.hms-modal-card .modal-head button {
+  background: transparent;
+  border: none;
+  color: #94A3B8;
+  cursor: pointer;
+}
+
+.modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.modal-form .form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.modal-form .form-field label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #94A3B8;
+}
+
+.modal-form .form-field input, .modal-form .form-field select {
+  background: #1E293B;
+  border: 1px solid #334155;
+  color: #F8FAFC;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.btn-sec {
+  background: #1E293B;
+  border: 1px solid #334155;
+  color: #94A3B8;
+  padding: 10px 18px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* Toast */
+.hms-toast {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  background: #0F172A;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  color: #34D399;
+  padding: 14px 20px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  z-index: 1000;
+}
+
+.hms-credentials-box {
+  background: #0F172A;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 20px;
+  padding: 28px;
+}
+
+.hms-credentials-box h3 {
+  font-family: 'Outfit', sans-serif;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.hms-credentials-box .sub-desc {
+  font-size: 13px;
+  color: #94A3B8;
+  margin-top: 4px;
+}
+
+.credentials-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+}
+
+.cred-card {
+  background: #1E293B;
+  border: 1px solid #334155;
+  border-radius: 16px;
+  padding: 16px;
+}
+
+.cred-card .cred-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+
 
 
 
