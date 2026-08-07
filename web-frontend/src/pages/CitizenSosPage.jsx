@@ -8,6 +8,7 @@ import { sendSosRequest, sendAudioSosRequest } from '../services/api';
 import RadarCanvas from '../components/RadarCanvas';
 import HospitalResponsePanel from '../components/HospitalResponsePanel';
 import useRadarSearch from '../hooks/useRadarSearch';
+import { API_BASE_URL } from '../config';
 
 export default function CitizenSosPage({
   selectedLang: propSelectedLang,

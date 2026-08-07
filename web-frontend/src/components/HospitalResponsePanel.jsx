@@ -1,5 +1,6 @@
 import React from 'react';
 import { formatDistance } from '../hooks/useRadarSearch';
+import SOSStatusTimeline from './SOSStatusTimeline';
 
 /**
  * HospitalResponsePanel — Left-side panel showing discovered hospitals
@@ -68,14 +69,21 @@ export default function HospitalResponsePanel({
 
       {/* Final Selection Banner */}
       {finalHospital && (
-        <div className="final-selection-banner">
-          <div className="final-banner-icon">🏥</div>
-          <div className="final-banner-content">
-            <div className="final-banner-label">HOSPITAL SELECTED</div>
-            <div className="final-banner-name">{finalHospital.name}</div>
-            <div className="final-banner-distance">
-              📏 {formatDistance(finalHospital.distance)} • {finalHospital.dept || 'General'}
+        <div className="final-selection-banner" style={{ flexDirection: 'column' }}>
+          <div style={{ display: 'flex', alignItems: 'center', width: '100%', gap: '15px' }}>
+            <div className="final-banner-icon">🏥</div>
+            <div className="final-banner-content">
+              <div className="final-banner-label">HOSPITAL SELECTED</div>
+              <div className="final-banner-name">{finalHospital.name}</div>
+              <div className="final-banner-distance">
+                📏 {formatDistance(finalHospital.distance)} • {finalHospital.dept || 'General'}
+              </div>
             </div>
+          </div>
+          
+          <div style={{ width: '100%', marginTop: '10px' }}>
+             {/* Read SOS ID from responses mapping */}
+             <SOSStatusTimeline sosId={responses[`${finalHospital.id}_sos_id`]} />
           </div>
         </div>
       )}

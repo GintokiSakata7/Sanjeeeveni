@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { AlertTriangle, MapPin, Activity, Stethoscope, User, Image as ImageIcon, Check, X } from 'lucide-react';
 
-export default function IncomingSOSAlert({ sosRequest, availableDoctors, onAccept, onReject }) {
-  const [selectedDoctorId, setSelectedDoctorId] = useState('');
+export default function IncomingSOSAlert({ sosRequest, availableDrivers, availableAmbulances, onAccept, onReject }) {
+  const [selectedDriverId, setSelectedDriverId] = useState('');
+  const [selectedAmbulanceId, setSelectedAmbulanceId] = useState('');
 
   if (!sosRequest) return null;
 
@@ -57,20 +58,39 @@ export default function IncomingSOSAlert({ sosRequest, availableDoctors, onAccep
             )}
           </div>
           
-          <div className="form-field">
+          <div className="form-field" style={{ marginBottom: '15px' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#94a3b8' }}>
-              <Stethoscope size={16} color="#2dd4bf" />
-              Assign Available Doctor (Required for ACCEPT)
+              <User size={16} color="#2dd4bf" />
+              Assign Driver (Primary)
             </label>
             <select
-              value={selectedDoctorId}
-              onChange={(e) => setSelectedDoctorId(e.target.value)}
+              value={selectedDriverId}
+              onChange={(e) => setSelectedDriverId(e.target.value)}
               style={{ width: '100%', backgroundColor: '#1a2332', color: 'white', padding: '10px', borderRadius: '8px', border: '1px solid #334155' }}
             >
-              <option value="">-- Select an available doctor --</option>
-              {availableDoctors.map(doc => (
-                <option key={doc.id} value={doc.id}>
-                  {doc.name} ({doc.specialization})
+              <option value="">-- Select available driver --</option>
+              {availableDrivers.map(drv => (
+                <option key={drv.id} value={drv.id}>
+                  {drv.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="form-field">
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#94a3b8' }}>
+              <Stethoscope size={16} color="#fb7185" />
+              Assign Ambulance
+            </label>
+            <select
+              value={selectedAmbulanceId}
+              onChange={(e) => setSelectedAmbulanceId(e.target.value)}
+              style={{ width: '100%', backgroundColor: '#1a2332', color: 'white', padding: '10px', borderRadius: '8px', border: '1px solid #334155' }}
+            >
+              <option value="">-- Select available ambulance --</option>
+              {availableAmbulances.map(amb => (
+                <option key={amb.id} value={amb.id}>
+                  {amb.vehicle_registration} ({amb.vehicle_type})
                 </option>
               ))}
             </select>
@@ -86,17 +106,17 @@ export default function IncomingSOSAlert({ sosRequest, availableDoctors, onAccep
             <X size={18} /> REJECT
           </button>
           <button
-            onClick={() => onAccept(sosRequest.id, selectedDoctorId)}
-            disabled={!selectedDoctorId}
+            onClick={() => onAccept(sosRequest.id, selectedDriverId, selectedAmbulanceId)}
+            disabled={!selectedDriverId || !selectedAmbulanceId}
             className="btn-add-primary"
             style={{ 
               display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center', 
               backgroundColor: '#ef4444', 
-              opacity: !selectedDoctorId ? 0.5 : 1,
-              cursor: !selectedDoctorId ? 'not-allowed' : 'pointer'
+              opacity: (!selectedDriverId || !selectedAmbulanceId) ? 0.5 : 1,
+              cursor: (!selectedDriverId || !selectedAmbulanceId) ? 'not-allowed' : 'pointer'
             }}
           >
-            <Check size={18} /> ACCEPT & ASSIGN
+            <Check size={18} /> ACCEPT & DISPATCH
           </button>
         </div>
 

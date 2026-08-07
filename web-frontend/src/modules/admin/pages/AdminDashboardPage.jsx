@@ -23,6 +23,7 @@ import {
   RefreshCw,
   Send
 } from 'lucide-react';
+import { getApiUrl } from '../../../config';
 
 import { fetchWithFallback } from '../../../services/apiClient';
 

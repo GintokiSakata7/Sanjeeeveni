@@ -25,6 +25,10 @@ import {
   EyeOff,
   Lock
 } from 'lucide-react';
+import {
+  PieChart, Pie, Cell, Tooltip as RechartsTooltip, ResponsiveContainer
+} from 'recharts';
+import { getApiUrl } from '../../../config';
 
 import IncomingSOSAlert from '../components/IncomingSOSAlert';
 import { fetchWithFallback } from '../../../services/apiClient';
@@ -82,15 +86,22 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
     return () => clearInterval(intervalId);
   }, [hospitalId]);
 
-  const handleRespondToSOS = async (sosId, status, doctorId = null) => {
+  const handleRespondToSOS = async (sosId, status, driverId = null, ambulanceId = null) => {
     try {
-      const payload = { status, doctor_id: doctorId };
+      const payload = { status };
       const res = await fetchWithFallback(`/api/v1/routing/respond/${sosId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
       if (res.ok) {
+        if (status === 'ACCEPTED' && driverId && ambulanceId) {
+           await fetchWithFallback(`/api/v1/routing/assign-driver/${sosId}`, {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({ driver_id: driverId, ambulance_id: ambulanceId })
+           });
+        }
         triggerToast(`SOS Emergency ${status}`, status === 'ACCEPTED' ? 'success' : 'error');
         setIncomingSOS(null);
       } else {
@@ -1102,9 +1113,10 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
       {/* SOS EMERGENCY ALERT MODAL */}
       <IncomingSOSAlert
         sosRequest={incomingSOS}
-        availableDoctors={doctors.filter(d => d.status === 'Available')}
-        onAccept={(sosId, docId) => handleRespondToSOS(sosId, 'ACCEPTED', docId)}
-        onReject={(sosId) => handleRespondToSOS(sosId, 'REJECTED')}
+        availableDrivers={drivers.filter(d => d.status === 'Available' || d.status === 'Available (Standby)')}
+        availableAmbulances={ambulances.filter(a => a.status === 'Available' || a.status === 'Available (Standby)')}
+        onAccept={(id, driverId, ambId) => handleRespondToSOS(id, 'ACCEPTED', driverId, ambId)}
+        onReject={(id) => handleRespondToSOS(id, 'REJECTED')}
       />
     </div>
   );
