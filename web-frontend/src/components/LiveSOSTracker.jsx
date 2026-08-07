@@ -15,6 +15,24 @@ const STATUS_STEPS = [
 
 const STATUS_ORDER = STATUS_STEPS.map(s => s.key);
 
+const deriveDisplayStatus = (data) => {
+  if (data?.driver_status === 'ARRIVED' || data?.status === 'ARRIVED') return 'ARRIVED';
+  if (['EN_ROUTE', 'IN_TRANSIT', 'DISPATCHED'].includes(data?.driver_status) || data?.assigned_driver_name) return 'DISPATCHED';
+  if (data?.doctor_status === 'ACCEPTED' || data?.status === 'DOCTOR_ACCEPTED') return 'DOCTOR_ACCEPTED';
+  if (data?.assigned_doctor_name || data?.doctor_status === 'ASSIGNED') return 'DOCTOR_ASSIGNED';
+  return data?.status || 'PENDING';
+};
+
+const advanceStatus = (nextStatus, setCurrentStatus) => {
+  setCurrentStatus(prev => {
+    const prevIdx = STATUS_ORDER.indexOf(prev);
+    const nextIdx = STATUS_ORDER.indexOf(nextStatus);
+    if (nextIdx === -1) return prev;
+    if (prevIdx === -1 || nextIdx >= prevIdx) return nextStatus;
+    return prev;
+  });
+};
+
 const colorMap = {
   red:     { bg: 'rgba(239,68,68,0.15)',   border: 'rgba(239,68,68,0.5)',   text: '#fca5a5' },
   amber:   { bg: 'rgba(245,158,11,0.15)',  border: 'rgba(245,158,11,0.5)',  text: '#fde68a' },
@@ -43,7 +61,7 @@ const LiveSOSTracker = ({ sosId }) => {
         const res = await fetchWithFallback(`/api/v1/routing/status/${sosId}`);
         if (res.ok) {
           const data = await res.json();
-          if (data.status) setCurrentStatus(data.status);
+          advanceStatus(deriveDisplayStatus(data), setCurrentStatus);
           if (data.assigned_doctor_name) {
             const info = { name: data.assigned_doctor_name, specialty: 'Emergency Physician' };
             setDoctorInfo(info);
@@ -74,7 +92,7 @@ const LiveSOSTracker = ({ sosId }) => {
       setMessages(prev => [...prev, { time: new Date().toLocaleTimeString(), text }]);
 
     const handleStatusUpdate = (data) => {
-      if (data.status) setCurrentStatus(data.status);
+      if (data.status) advanceStatus(data.status, setCurrentStatus);
       if (data.message) addMsg(data.message);
     };
 
@@ -82,17 +100,18 @@ const LiveSOSTracker = ({ sosId }) => {
       const info = { name: data.doctor_name, specialty: data.doctor_specialty || 'Emergency Physician' };
       setDoctorInfo(info);
       doctorInfoRef.current = info;
-      setCurrentStatus(prev =>
-        STATUS_ORDER.indexOf('DOCTOR_ASSIGNED') > STATUS_ORDER.indexOf(prev) ? 'DOCTOR_ASSIGNED' : prev
-      );
+      advanceStatus('DOCTOR_ASSIGNED', setCurrentStatus);
+      if (data.message) addMsg(data.message);
+    };
+
+    const handleDoctorAccepted = (data) => {
+      advanceStatus('DOCTOR_ACCEPTED', setCurrentStatus);
       if (data.message) addMsg(data.message);
     };
 
     const handleDriverDispatched = (data) => {
       setAmbulanceInfo({ driver: data.driver_name, reg: data.ambulance_reg });
-      setCurrentStatus(prev =>
-        STATUS_ORDER.indexOf('DISPATCHED') > STATUS_ORDER.indexOf(prev) ? 'DISPATCHED' : prev
-      );
+      advanceStatus('DISPATCHED', setCurrentStatus);
       if (data.message) addMsg(data.message);
     };
 
@@ -100,7 +119,15 @@ const LiveSOSTracker = ({ sosId }) => {
       if (data.message) addMsg(data.message);
     };
 
+    const handleHelperAccepted = (data) => {
+      if (data.message) addMsg(data.message);
+    };
+
     const handleIncomingCall = (data) => {
+      if (!data.sdp) {
+        if (data.message) addMsg(data.message);
+        return;
+      }
       setIncomingCall({
         doctor_id: data.doctor_id,
         sdp:       data.sdp,
@@ -115,17 +142,23 @@ const LiveSOSTracker = ({ sosId }) => {
 
     wsService.on('STATUS_UPDATE',      handleStatusUpdate);
     wsService.on('DOCTOR_ASSIGNED',    handleDoctorAssigned);
+    wsService.on('DOCTOR_ACCEPTED',    handleDoctorAccepted);
     wsService.on('DRIVER_DISPATCHED',  handleDriverDispatched);
     wsService.on('DRIVER_EN_ROUTE',    handleDriverEnRoute);
+    wsService.on('HELPER_ACCEPTED',    handleHelperAccepted);
     wsService.on('INITIATE_CALL',      handleIncomingCall);
+    wsService.on('CALL_OFFER',         handleIncomingCall);
     wsService.on('CALL_END',           handleCallEnded);
 
     return () => {
       wsService.off('STATUS_UPDATE',     handleStatusUpdate);
       wsService.off('DOCTOR_ASSIGNED',   handleDoctorAssigned);
+      wsService.off('DOCTOR_ACCEPTED',   handleDoctorAccepted);
       wsService.off('DRIVER_DISPATCHED', handleDriverDispatched);
       wsService.off('DRIVER_EN_ROUTE',   handleDriverEnRoute);
+      wsService.off('HELPER_ACCEPTED',   handleHelperAccepted);
       wsService.off('INITIATE_CALL',     handleIncomingCall);
+      wsService.off('CALL_OFFER',        handleIncomingCall);
       wsService.off('CALL_END',          handleCallEnded);
       wsService.disconnect();
     };

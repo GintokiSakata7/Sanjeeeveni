@@ -11,8 +11,7 @@ import LiveSOSTracker from '../components/LiveSOSTracker';
 import useRadarSearch from '../hooks/useRadarSearch';
 import useHelperSearch from '../hooks/useHelperSearch';
 import HelperResponsePanel from '../components/HelperResponsePanel';
-import { supabase } from '../services/supabaseClient';
-import { API_BASE_URL } from '../config';
+import { fetchWithFallback } from '../services/apiClient';
 
 export default function CitizenSosPage({
   selectedLang: propSelectedLang,
@@ -269,41 +268,42 @@ export default function CitizenSosPage({
     }
   };
 
+  const routedSosIdForHelpers = radar.finalHospital
+    ? radar.responses[`${radar.finalHospital.id}_sos_id`]
+    : Object.entries(radar.responses).find(([key, value]) => key.endsWith('_sos_id') && value)?.[1];
+
   // Notify newly discovered helpers
   useEffect(() => {
-    if (!triageResult?.case_id) return;
+    if (!routedSosIdForHelpers) return;
     
     helperSearch.discoveredHelpers.forEach(async (h) => {
       const helperId = String(h.id);
       if (!notifiedHelpersRef.current.has(helperId)) {
         notifiedHelpersRef.current.add(helperId);
         try {
-          await fetch(`${API_BASE_URL}/api/v1/mobile/helper/notify`, {
+          await fetchWithFallback('/api/v1/mobile/helper/notify', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sos_id: triageResult.case_id, helper_id: helperId })
+            body: JSON.stringify({ sos_id: routedSosIdForHelpers, helper_id: helperId })
           });
         } catch (err) {
           console.error("Failed to notify helper", err);
         }
       }
     });
-  }, [triageResult?.case_id, helperSearch.discoveredHelpers]);
+  }, [routedSosIdForHelpers, helperSearch.discoveredHelpers]);
 
   // Poll Supabase for Helper Status
   useEffect(() => {
-    if (!triageResult?.case_id) return;
+    if (!routedSosIdForHelpers) return;
     
     let intervalId = null;
     if (helperSearch.isSearchActive && !helperSearch.finalHelper) {
       intervalId = setInterval(async () => {
         try {
-          const { data, error } = await supabase
-            .from('helper_notifications')
-            .select('helper_id, status')
-            .eq('sos_id', triageResult.case_id);
-            
-          if (!error && data) {
+          const res = await fetchWithFallback(`/api/v1/routing/helper-status/${routedSosIdForHelpers}`);
+          if (res.ok) {
+            const data = await res.json();
             data.forEach(notif => {
               if (notif.status === 'ACCEPTED') {
                 helperSearch.acceptHelper(notif.helper_id);
@@ -321,7 +321,7 @@ export default function CitizenSosPage({
     return () => {
       if (intervalId) clearInterval(intervalId);
     };
-  }, [triageResult?.case_id, helperSearch.isSearchActive, helperSearch.finalHelper, helperSearch.acceptHelper, helperSearch.rejectHelper]);
+  }, [routedSosIdForHelpers, helperSearch.isSearchActive, helperSearch.finalHelper, helperSearch.acceptHelper, helperSearch.rejectHelper]);
 
   // Prepare discovered IDs for radar canvas
   const discoveredIds = radar.discoveredHospitals.map(h => h.id);

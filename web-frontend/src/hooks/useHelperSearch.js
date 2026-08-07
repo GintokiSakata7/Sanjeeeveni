@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { supabase } from '../services/supabaseClient';
+import { fetchWithFallback } from '../services/apiClient';
 
 // Radius steps in meters (matches Pygame config.py)
 const RADIUS_STEPS = [50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000];
@@ -117,21 +117,12 @@ export default function useHelperSearch() {
     addNotification(`SCANNING RADIUS: ${formatDistance(RADIUS_STEPS[0])}...`, 'scan');
 
     try {
-      let data = [];
-      try {
-        const res = await supabase
-          .from('helpers')
-          .select('*')
-          .eq('is_active', true);
-        if (res.data && res.data.length > 0) {
-          data = res.data;
-        }
-      } catch (err) {
-        console.warn('Supabase helpers fetch failed, falling back to mock data:', err);
-      }
+      const res = await fetchWithFallback('/api/v1/routing/helpers/active');
+      if (!res.ok) throw new Error('Failed to fetch helpers');
+      const data = await res.json();
 
       if (!data || data.length === 0) {
-        addNotification('NO HELPERS IN RADIUS OR DB IS EMPTY', 'warning');
+        addNotification('NO ACTIVE HELPERS FOUND IN DATABASE', 'warning');
       }
 
       // Enrich each helper with distance, bearing, and normalized string ID

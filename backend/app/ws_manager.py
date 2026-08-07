@@ -11,6 +11,8 @@ class ConnectionManager:
         self.active_sos_connections: Dict[str, List[WebSocket]] = {}
         # Maps doctor_id -> list of doctor app connections
         self.active_doctor_connections: Dict[str, List[WebSocket]] = {}
+        # Maps driver_id -> list of driver app connections
+        self.active_driver_connections: Dict[str, List[WebSocket]] = {}
         # Keep track of which sos_id a doctor is currently handling (for routing ICE candidates)
         # map: doctor_id -> current_sos_id
         self.doctor_current_case: Dict[str, str] = {}
@@ -47,6 +49,21 @@ class ConnectionManager:
             del self.doctor_current_case[doctor_id]
         logger.info(f"Doctor {doctor_id} disconnected.")
 
+    async def connect_driver(self, websocket: WebSocket, driver_id: str):
+        await websocket.accept()
+        if driver_id not in self.active_driver_connections:
+            self.active_driver_connections[driver_id] = []
+        self.active_driver_connections[driver_id].append(websocket)
+        logger.info(f"Driver {driver_id} connected. Total: {len(self.active_driver_connections[driver_id])}")
+
+    def disconnect_driver(self, websocket: WebSocket, driver_id: str):
+        if driver_id in self.active_driver_connections:
+            if websocket in self.active_driver_connections[driver_id]:
+                self.active_driver_connections[driver_id].remove(websocket)
+            if not self.active_driver_connections[driver_id]:
+                del self.active_driver_connections[driver_id]
+        logger.info(f"Driver {driver_id} disconnected.")
+
     async def broadcast_to_sos(self, sos_id: str, message: dict):
         """Send message to all clients connected to a specific SOS ID"""
         if sos_id in self.active_sos_connections:
@@ -66,5 +83,15 @@ class ConnectionManager:
                     await connection.send_text(message_str)
                 except Exception as e:
                     logger.error(f"Error sending to Doctor {doctor_id}: {e}")
+
+    async def broadcast_to_driver(self, driver_id: str, message: dict):
+        """Send message to a specific driver's devices"""
+        if driver_id in self.active_driver_connections:
+            message_str = json.dumps(message)
+            for connection in self.active_driver_connections[driver_id]:
+                try:
+                    await connection.send_text(message_str)
+                except Exception as e:
+                    logger.error(f"Error sending to Driver {driver_id}: {e}")
 
 manager = ConnectionManager()

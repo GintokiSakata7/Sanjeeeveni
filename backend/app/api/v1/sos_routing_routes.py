@@ -96,7 +96,7 @@ def get_active_sos(hospital_id: str, db: Client = Depends(get_supabase)):
     if not db:
         return JSONResponse(status_code=503, content={"detail": "Supabase client not initialized."})
     try:
-        res = db.table("sos_requests").select("*").eq("hospital_id", hospital_id).in_("status", ["ACCEPTED", "DOCTOR_ACCEPTED", "DISPATCHED", "IN_TRANSIT", "ARRIVED"]).order("updated_at", desc=True).execute()
+        res = db.table("sos_requests").select("*").eq("hospital_id", hospital_id).in_("status", ["ACCEPTED", "DOCTOR_ACCEPTED", "HELPER_ACCEPTED", "DISPATCHED", "IN_TRANSIT", "ARRIVED"]).order("updated_at", desc=True).execute()
         return res.data
     except Exception as e:
         return _net_err(e)
@@ -208,6 +208,9 @@ def assign_driver(sos_id: str, payload: AssignDriverPayload, db: Client = Depend
             update_data["assigned_ambulance_reg"] = ambulance.get("vehicle_registration", "Unknown")
 
         db.table("sos_requests").update(update_data).eq("id", sos_id).execute()
+        db.table("drivers").update({"status": "Assigned"}).eq("id", payload.driver_id).execute()
+        if ambulance:
+            db.table("ambulances").update({"status": "Dispatched"}).eq("id", ambulance["id"]).execute()
 
         amb_info = f" with Ambulance {ambulance.get('vehicle_registration')}" if ambulance else ""
         tl = {
@@ -226,6 +229,15 @@ def assign_driver(sos_id: str, payload: AssignDriverPayload, db: Client = Depend
                 "driver_name": driver.get('name'),
                 "ambulance_reg": ambulance.get('vehicle_registration') if ambulance else 'N/A',
                 "message": tl["message"]
+            }))
+            asyncio.run(manager.broadcast_to_driver(driver["id"], {
+                "type": "NEW_DRIVER_ASSIGNMENT",
+                "sos_id": sos_id,
+                "patient_lat": res.data[0].get("citizen_lat"),
+                "patient_lng": res.data[0].get("citizen_lng"),
+                "emergency_type": res.data[0].get("transcript", "Emergency Request"),
+                "severity": res.data[0].get("triage_urgency", "CRITICAL"),
+                "message": "New emergency pickup assigned. Use the patient coordinates for directions."
             }))
         except Exception:
             pass
@@ -414,6 +426,26 @@ def notify_nearby_helpers(sos_id: str, db: Client = Depends(get_supabase)):
     except Exception as e:
         return _net_err(e)
 
+@router.get("/helpers/active")
+def get_active_helpers(db: Client = Depends(get_supabase)):
+    if not db:
+        return JSONResponse(status_code=503, content={"detail": "Supabase client not initialized."})
+    try:
+        res = db.table("helpers").select("*").eq("is_active", True).execute()
+        return res.data or []
+    except Exception as e:
+        return _net_err(e)
+
+@router.get("/helper-status/{sos_id}")
+def get_helper_status(sos_id: str, db: Client = Depends(get_supabase)):
+    if not db:
+        return JSONResponse(status_code=503, content={"detail": "Supabase client not initialized."})
+    try:
+        res = db.table("helper_notifications").select("helper_id,status").eq("sos_id", sos_id).execute()
+        return res.data or []
+    except Exception as e:
+        return _net_err(e)
+
 @router.get("/status/{sos_id}")
 def check_sos_status(sos_id: str, db: Client = Depends(get_supabase)):
     """Called by the Citizen Frontend to poll for hospital response."""
@@ -458,12 +490,13 @@ async def initiate_call(sos_id: str, db: Client = Depends(get_supabase)):
         if not doctor_id:
             raise HTTPException(status_code=400, detail="No doctor assigned to this SOS request.")
         
-        # Push INITIATE_CALL to the patient's WebSocket so IncomingCallModal appears
+        # Notify the patient's tracker. The actual call modal is shown only when
+        # the doctor app sends a WebRTC CALL_OFFER over the websocket.
         await manager.broadcast_to_sos(sos_id, {
-            "type": "INITIATE_CALL",
+            "type": "STATUS_UPDATE",
+            "status": "DOCTOR_ACCEPTED",
             "doctor_id": doctor_id,
-            "name": doctor_name,
-            "sdp": None  # Signaling will be exchanged over WS after patient accepts
+            "message": f"Dr. {doctor_name} is ready to contact you."
         })
         
         # Also notify the doctor that hospital is trying to connect

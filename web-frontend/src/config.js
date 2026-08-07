@@ -1,5 +1,4 @@
-// Force localhost since Render is not yet updated with REST API keys
-export const API_BASE_URL = 'http://localhost:8000';
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 // Helper to construct full API endpoints
 export const getApiUrl = (path) => {

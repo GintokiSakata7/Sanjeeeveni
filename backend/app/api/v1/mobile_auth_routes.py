@@ -259,10 +259,10 @@ def get_doctor_assigned_cases(doctor_id: str, db: Client = Depends(get_supabase)
         for sos in sos_items:
             cases.append({
                 "id": sos["id"],
-                "patient_name": "Citizen Request",
+                "patient_name": sos.get("patient_name"),
                 "patient_age": None,
-                "patient_gender": "Unknown",
-                "blood_group": "Unknown",
+                "patient_gender": sos.get("patient_gender"),
+                "blood_group": sos.get("blood_group"),
                 "emergency_type": sos.get("transcript", "Emergency Request"),
                 "severity": sos.get("triage_urgency", "CRITICAL"),
                 "location_address": f"GPS ({sos['citizen_lat']:.4f}° N, {sos['citizen_lng']:.4f}° E)",
@@ -274,7 +274,7 @@ def get_doctor_assigned_cases(doctor_id: str, db: Client = Depends(get_supabase)
                 "reported_symptoms": [sos.get("transcript", "No transcript provided")],
                 "assigned_ambulance_unit": sos.get("assigned_ambulance_reg", "Not Assigned"),
                 "assigned_hospital": hospital_name,
-                "caller_phone": "Unknown",
+                "caller_phone": sos.get("caller_phone"),
                 "status": sos.get("status"),
                 "timestamp": sos.get("updated_at") or sos.get("created_at")
             })
@@ -289,7 +289,7 @@ def accept_doctor_case(sos_id: str, db: Client = Depends(get_supabase)):
     if not db:
         return JSONResponse(status_code=503, content={"detail": "Supabase client not initialized."})
     try:
-        sos = db.table("sos_requests").select("id").eq("id", sos_id).execute().data
+        sos = db.table("sos_requests").select("id,assigned_doctor_id").eq("id", sos_id).execute().data
         if not sos:
             raise HTTPException(status_code=404, detail="SOS case not found")
 
@@ -314,8 +314,14 @@ def accept_doctor_case(sos_id: str, db: Client = Depends(get_supabase)):
             asyncio.run(manager.broadcast_to_sos(sos_id, {
                 "type": "STATUS_UPDATE",
                 "status": "DOCTOR_ACCEPTED",
-                "message": "Doctor has accepted your emergency. They are preparing to contact you."
+                "message": "Doctor accepted the emergency case. Ready to be contacted."
             }))
+            if sos[0].get("assigned_doctor_id"):
+                asyncio.run(manager.broadcast_to_doctor(sos[0]["assigned_doctor_id"], {
+                    "type": "CASE_READY_TO_CALL",
+                    "sos_id": sos_id,
+                    "message": "Case accepted. Use the call button to contact the patient."
+                }))
         except Exception:
             pass
         
@@ -361,7 +367,7 @@ def get_driver_assigned_cases(driver_id: str, db: Client = Depends(get_supabase)
         for sos in sos_items:
             cases.append({
                 "id": sos["id"],
-                "patient_name": f"Victim ({sos['id'][-4:]})",
+                "patient_name": sos.get("patient_name"),
                 "emergency_type": sos.get("transcript", "Trauma"),
                 "severity": sos.get("triage_urgency", "CRITICAL"),
                 "latitude": sos["citizen_lat"],
@@ -390,20 +396,20 @@ def get_helper_alerts(helper_id: str, db: Client = Depends(get_supabase)):
                 "id": sos.get("id"),
                 "notification_id": notif["id"],
                 "status": notif["status"],
-                "patient_name": "Emergency Victim",
-                "patient_age": 45,
-                "patient_gender": "Unknown",
-                "blood_group": "O+",
+                "patient_name": sos.get("patient_name"),
+                "patient_age": sos.get("patient_age"),
+                "patient_gender": sos.get("patient_gender"),
+                "blood_group": sos.get("blood_group"),
                 "emergency_type": sos.get("transcript", "Emergency Intake"),
-                "severity": sos.get("severity", "HIGH"),
+                "severity": sos.get("triage_urgency", "HIGH"),
                 "latitude": sos.get("citizen_lat"),
                 "longitude": sos.get("citizen_lng"),
-                "location_address": "Emergency Scene Coordinates",
-                "distance_km": 1.5,
-                "eta_minutes": 5,
+                "location_address": f"GPS ({sos.get('citizen_lat')}, {sos.get('citizen_lng')})",
+                "distance_km": None,
+                "eta_minutes": None,
                 "assigned_ambulance_unit": sos.get("assigned_ambulance_reg", "None"),
-                "assigned_hospital": "None",
-                "caller_phone": "+91 98765 43210",
+                "assigned_hospital": sos.get("hospital_id"),
+                "caller_phone": sos.get("caller_phone"),
                 "timestamp": notif.get("created_at")
             })
         return {"total": len(formatted), "alerts": formatted}
@@ -467,6 +473,15 @@ def accept_helper_alert(notification_id: str, db: Client = Depends(get_supabase)
             "created_at": datetime.utcnow().isoformat()
         }
         db.table("sos_timelines").insert(tl).execute()
+        try:
+            asyncio.run(manager.broadcast_to_sos(notif["sos_id"], {
+                "type": "HELPER_ACCEPTED",
+                "helper_id": notif["helper_id"],
+                "helper_name": helper_name,
+                "message": tl["message"]
+            }))
+        except Exception:
+            pass
         
         return {"success": True, "message": "Response logged and SOS updated."}
     except HTTPException:

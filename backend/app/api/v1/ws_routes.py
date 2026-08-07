@@ -44,7 +44,7 @@ async def websocket_doctor_endpoint(websocket: WebSocket, doctor_id: str):
             msg_type = message.get("type")
             
             # When doctor initiates a call or sends ICE candidates, relay to patient
-            if msg_type in ["INITIATE_CALL", "CALL_END", "ICE_CANDIDATE"]:
+            if msg_type in ["INITIATE_CALL", "CALL_OFFER", "CALL_END", "ICE_CANDIDATE"]:
                 sos_id = message.get("sos_id")
                 if sos_id:
                     # Remember which case the doctor is currently handling
@@ -62,3 +62,16 @@ async def websocket_doctor_endpoint(websocket: WebSocket, doctor_id: str):
     except Exception as e:
         logger.error(f"Doctor WS Error: {e}")
         manager.disconnect_doctor(websocket, doctor_id)
+
+@router.websocket("/driver/{driver_id}")
+async def websocket_driver_endpoint(websocket: WebSocket, driver_id: str):
+    """WebSocket endpoint for the driver mobile app to receive assigned patient coordinates."""
+    await manager.connect_driver(websocket, driver_id)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect_driver(websocket, driver_id)
+    except Exception as e:
+        logger.error(f"Driver WS Error: {e}")
+        manager.disconnect_driver(websocket, driver_id)
