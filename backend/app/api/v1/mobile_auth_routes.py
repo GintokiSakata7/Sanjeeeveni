@@ -257,22 +257,22 @@ def get_doctor_assigned_cases(doctor_id: str, db: Client = Depends(get_supabase)
         for sos in sos_items:
             cases.append({
                 "id": sos["id"],
-                "patient_name": f"Emergency Victim ({sos['id'][-4:]})",
-                "patient_age": 45,
-                "patient_gender": "Emergency Intake",
-                "blood_group": "O+",
-                "emergency_type": sos.get("transcript", "Severe Trauma Emergency"),
+                "patient_name": "Citizen Request",
+                "patient_age": None,
+                "patient_gender": "Unknown",
+                "blood_group": "Unknown",
+                "emergency_type": sos.get("transcript", "Emergency Request"),
                 "severity": sos.get("triage_urgency", "CRITICAL"),
                 "location_address": f"GPS ({sos['citizen_lat']:.4f}° N, {sos['citizen_lng']:.4f}° E)",
                 "latitude": sos["citizen_lat"],
                 "longitude": sos["citizen_lng"],
-                "distance_km": 1.5,
-                "eta_minutes": 5,
-                "vitals": {"Pulse": "115 bpm", "BP": "98/62 mmHg", "SpO2": "94%", "Resp Rate": "22 /min"},
-                "reported_symptoms": [sos.get("transcript", "Citizen SOS"), f"Status: {sos.get('status', 'PENDING')}"],
-                "assigned_ambulance_unit": sos.get("assigned_ambulance_reg", "ALS-108"),
+                "distance_km": None,
+                "eta_minutes": None,
+                "vitals": {},
+                "reported_symptoms": [sos.get("transcript", "No transcript provided")],
+                "assigned_ambulance_unit": sos.get("assigned_ambulance_reg", "Not Assigned"),
                 "assigned_hospital": hospital_name,
-                "caller_phone": "+91 98765 43210",
+                "caller_phone": "Unknown",
                 "status": sos.get("status"),
                 "timestamp": sos.get("updated_at") or sos.get("created_at")
             })
@@ -291,7 +291,22 @@ def accept_doctor_case(sos_id: str, db: Client = Depends(get_supabase)):
         if not sos:
             raise HTTPException(status_code=404, detail="SOS case not found")
 
-        db.table("sos_requests").update({"status": "DOCTOR_ACCEPTED", "updated_at": datetime.utcnow().isoformat()}).eq("id", sos_id).execute()
+        db.table("sos_requests").update({
+            "status": "DOCTOR_ACCEPTED", 
+            "doctor_status": "ACCEPTED",
+            "updated_at": datetime.utcnow().isoformat()
+        }).eq("id", sos_id).execute()
+        
+        # Add timeline event so web portal can see it
+        tl = {
+            "sos_id": sos_id,
+            "event_type": "DOCTOR_ACCEPTED",
+            "actor_role": "doctor",
+            "message": "Doctor accepted the emergency case. Ready for contact.",
+            "created_at": datetime.utcnow().isoformat()
+        }
+        db.table("sos_timelines").insert(tl).execute()
+        
         return {"success": True, "message": f"Case {sos_id} accepted. ER Trauma Bay reserved.", "status": "DOCTOR_ACCEPTED"}
     except HTTPException:
         raise
@@ -312,13 +327,12 @@ def get_live_cases(db: Client = Depends(get_supabase)):
         for sos in sos_items:
             cases.append({
                 "id": sos["id"],
-                "patient_name": f"Emergency Patient ({sos['id'][-4:]})",
-                "emergency_type": sos.get("transcript", "Road Traffic Trauma"),
+                "emergency_type": sos.get("transcript", "Emergency Request"),
                 "severity": sos.get("triage_urgency", "CRITICAL"),
                 "latitude": sos["citizen_lat"],
                 "longitude": sos["citizen_lng"],
                 "status": sos.get("status"),
-                "timestamp": sos.get("created_at")
+                "timestamp": sos.get("updated_at") or sos.get("created_at")
             })
         return {"total": len(cases), "cases": cases}
     except Exception as e:

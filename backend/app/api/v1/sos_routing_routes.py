@@ -90,6 +90,17 @@ def get_pending_sos_requests(hospital_id: str, db: Client = Depends(get_supabase
     except Exception as e:
         return _net_err(e)
 
+@router.get("/active/{hospital_id}")
+def get_active_sos(hospital_id: str, db: Client = Depends(get_supabase)):
+    """Fetch all active (accepted/ongoing) SOS requests for a hospital."""
+    if not db:
+        return JSONResponse(status_code=503, content={"detail": "Supabase client not initialized."})
+    try:
+        res = db.table("sos_requests").select("*").eq("hospital_id", hospital_id).in_("status", ["ACCEPTED", "DOCTOR_ACCEPTED", "DISPATCHED", "IN_TRANSIT", "ARRIVED"]).order("updated_at", desc=True).execute()
+        return res.data
+    except Exception as e:
+        return _net_err(e)
+
 @router.post("/respond/{sos_id}")
 def respond_to_sos(sos_id: str, payload: SOSResponsePayload, db: Client = Depends(get_supabase)):
     """Called by the Hospital Dashboard to accept/reject an SOS."""
