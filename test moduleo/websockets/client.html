@@ -95,7 +95,7 @@
             // When a remote audio track arrives, play it in the <audio> element
             peerConnection.ontrack = (event) => {
                 remoteAudio.srcObject = event.streams[0];
-                setupVisualizer(event.streams[0]);
+                setupVisualizer();
             };
 
             // Get local audio stream
@@ -158,6 +158,12 @@
         // Caller receives the answer
         async function handleAnswer(answer) {
             await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+            
+            // Process any ICE candidates that arrived before the answer
+            for (const c of pendingCandidates) {
+                await peerConnection.addIceCandidate(new RTCIceCandidate(c));
+            }
+            pendingCandidates = [];
         }
 
         // Both peers exchange ICE candidates
@@ -198,19 +204,30 @@
         };
 
         // --- Audio Visualizer ---
-        function setupVisualizer(stream) {
+        function setupVisualizer() {
+            if (animationId) return; // already running
+
             const canvas = document.getElementById('visualizer');
             const canvasCtx = canvas.getContext('2d');
+            const audioElement = document.getElementById('remoteAudio');
 
             if (!audioCtx) {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
             
-            const source = audioCtx.createMediaStreamSource(stream);
-            analyser = audioCtx.createAnalyser();
-            source.connect(analyser);
+            // Use MediaElementSource to avoid Chrome bug with WebRTC streams
+            // Only create it once per audio element
+            if (!analyser) {
+                const source = audioCtx.createMediaElementSource(audioElement);
+                analyser = audioCtx.createAnalyser();
+                source.connect(analyser);
+                analyser.connect(audioCtx.destination); // Required for MediaElementSource
+                analyser.fftSize = 256;
+            }
             
-            analyser.fftSize = 256;
             const bufferLength = analyser.frequencyBinCount;
             const dataArray = new Uint8Array(bufferLength);
             
