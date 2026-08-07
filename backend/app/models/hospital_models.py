@@ -210,6 +210,23 @@ class Ambulance(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
+class Helper(SQLModel, table=True):
+    __tablename__ = "helpers"
+    __table_args__ = {"extend_existing": True}
+
+    id: str = Field(primary_key=True)
+    name: str
+    phone: str = Field(unique=True, index=True)
+    password_hash: str
+    location: Optional[str] = Field(default=None)
+    role_type: str = Field(default="ASHA Community Health Worker")
+    cert_id: Optional[str] = Field(default=None)
+    skills: List[str] = Field(default=[], sa_column=Column(JSON))
+    is_active: bool = Field(default=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+
 class SOSRequest(SQLModel, table=True):
     __tablename__ = "sos_requests"
     __table_args__ = {"extend_existing": True}
