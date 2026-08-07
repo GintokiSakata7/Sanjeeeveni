@@ -18,6 +18,8 @@ class _HelperRegisterScreenState extends State<HelperRegisterScreen> {
       TextEditingController(text: '+91 98490 12345');
   final TextEditingController _passwordController =
       TextEditingController(text: 'Helper123!');
+  final TextEditingController _confirmPasswordController =
+      TextEditingController(text: 'Helper123!');
   final TextEditingController _locationController =
       TextEditingController(text: 'Banjara Hills Sector 4, Hyderabad');
   final TextEditingController _certIdController =
@@ -33,6 +35,7 @@ class _HelperRegisterScreenState extends State<HelperRegisterScreen> {
   String _uploadedFileName = 'verified_paramedic_firstaid_cert.pdf';
   bool _isLoading = false;
   bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
 
   final List<String> _helperRoles = [
     'ASHA Community Health Worker',
@@ -89,11 +92,12 @@ class _HelperRegisterScreenState extends State<HelperRegisterScreen> {
     final name = _nameController.text.trim();
     final phone = _phoneController.text.trim();
     final password = _passwordController.text.trim();
+    final confirmPassword = _confirmPasswordController.text.trim();
 
-    if (name.isEmpty || phone.isEmpty || password.isEmpty) {
+    if (name.isEmpty || phone.isEmpty || password.isEmpty || confirmPassword.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please fill in Name, Phone and Password.'),
+          content: Text('Please fill in Name, Phone, Password and Confirm Password.'),
           backgroundColor: Color(0xFFDC2626),
         ),
       );
@@ -104,6 +108,16 @@ class _HelperRegisterScreenState extends State<HelperRegisterScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Password must be at least 6 characters.'),
+          backgroundColor: Color(0xFFDC2626),
+        ),
+      );
+      return;
+    }
+
+    if (password != confirmPassword) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Passwords do not match. Please re-enter.'),
           backgroundColor: Color(0xFFDC2626),
         ),
       );
@@ -357,6 +371,40 @@ class _HelperRegisterScreenState extends State<HelperRegisterScreen> {
                     onPressed: () {
                       setState(() {
                         _obscurePassword = !_obscurePassword;
+                      });
+                    },
+                  ),
+                  filled: true,
+                  fillColor: const Color(0xFF1E293B),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFF334155)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFF334155)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // Confirm Password
+              TextField(
+                controller: _confirmPasswordController,
+                obscureText: _obscureConfirmPassword,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  labelText: 'Confirm Password',
+                  labelStyle: const TextStyle(color: Color(0xFF94A3B8)),
+                  prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFF94A3B8)),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscureConfirmPassword ? Icons.visibility : Icons.visibility_off,
+                      color: const Color(0xFF94A3B8),
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _obscureConfirmPassword = !_obscureConfirmPassword;
                       });
                     },
                   ),
