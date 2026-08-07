@@ -50,7 +50,27 @@ const LiveSOSTracker = ({ sosId }) => {
   const [ambulanceInfo, setAmbulanceInfo] = useState(null);
   const [incomingCall, setIncomingCall]   = useState(null);
   const [callActive, setCallActive]       = useState(false);
+  const [progress, setProgress]           = useState(0);
   const doctorInfoRef = useRef(null);
+
+  // ── Simulate Ambulance Progress ─────────────────────────────────
+  useEffect(() => {
+    let timer;
+    if (currentStatus === 'DISPATCHED') {
+      timer = setInterval(() => {
+        setProgress(prev => {
+          if (prev >= 95) {
+            clearInterval(timer);
+            return prev;
+          }
+          return prev + 5;
+        });
+      }, 2000);
+    } else if (currentStatus === 'IN_TRANSIT' || currentStatus === 'ARRIVED') {
+      setProgress(100);
+    }
+    return () => clearInterval(timer);
+  }, [currentStatus]);
 
   // ── Hydrate state from DB on mount ──────────────────────────────
   useEffect(() => {
@@ -71,6 +91,7 @@ const LiveSOSTracker = ({ sosId }) => {
             setAmbulanceInfo({
               driver: data.assigned_driver_name || 'Driver',
               reg:    data.assigned_ambulance_reg || 'N/A',
+              contact: data.assigned_driver_contact || null
             });
           }
         }
@@ -110,7 +131,7 @@ const LiveSOSTracker = ({ sosId }) => {
     };
 
     const handleDriverDispatched = (data) => {
-      setAmbulanceInfo({ driver: data.driver_name, reg: data.ambulance_reg });
+      setAmbulanceInfo({ driver: data.driver_name, reg: data.ambulance_reg, contact: data.contact || null });
       advanceStatus('DISPATCHED', setCurrentStatus);
       if (data.message) addMsg(data.message);
     };
@@ -231,11 +252,47 @@ const LiveSOSTracker = ({ sosId }) => {
       )}
 
       {ambulanceInfo && (
-        <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', flexWrap: 'wrap' }}>
-          <div style={{ flex: 1, padding: '12px', background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.3)', borderRadius: '10px' }}>
-            <p style={{ margin: 0, fontSize: '12px', color: '#a5b4fc' }}>Ambulance Dispatched</p>
-            <p style={{ margin: '4px 0 0', fontWeight: 700, color: '#fff' }}>{ambulanceInfo.reg}</p>
-            <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#a5b4fc' }}>Driver: {ambulanceInfo.driver}</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
+          <div style={{ padding: '12px', background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.3)', borderRadius: '10px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <p style={{ margin: 0, fontSize: '12px', color: '#a5b4fc' }}>Ambulance Dispatched</p>
+                <p style={{ margin: '4px 0 0', fontWeight: 700, color: '#fff' }}>{ambulanceInfo.reg}</p>
+                <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#a5b4fc' }}>
+                  Driver: {ambulanceInfo.driver}
+                </p>
+                {ambulanceInfo.contact && (
+                  <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#34d399', fontWeight: 600 }}>
+                    📞 {ambulanceInfo.contact}
+                  </p>
+                )}
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ 
+                  width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(99,102,241,0.2)', 
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' 
+                }}>🚑</div>
+              </div>
+            </div>
+
+            {/* Live Tracking Progress Bar */}
+            <div style={{ marginTop: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#94a3b8', marginBottom: '6px' }}>
+                <span>{currentStatus === 'DISPATCHED' ? 'Ambulance En Route...' : (currentStatus === 'IN_TRANSIT' ? 'Patient Picked Up' : 'Arrived')}</span>
+                <span>{currentStatus === 'DISPATCHED' ? `${progress}% Covered` : '100% Covered'}</span>
+              </div>
+              <div style={{ width: '100%', height: '6px', background: '#334155', borderRadius: '3px', overflow: 'hidden', position: 'relative' }}>
+                <div style={{ 
+                  width: `${currentStatus === 'DISPATCHED' ? progress : 100}%`, 
+                  height: '100%', 
+                  background: 'linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%)', 
+                  borderRadius: '3px',
+                  transition: 'width 2s ease-in-out',
+                  position: 'absolute',
+                  top: 0, left: 0
+                }}></div>
+              </div>
+            </div>
           </div>
         </div>
       )}

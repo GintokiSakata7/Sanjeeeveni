@@ -11,6 +11,7 @@ import LiveSOSTracker from '../components/LiveSOSTracker';
 import useRadarSearch from '../hooks/useRadarSearch';
 import useHelperSearch from '../hooks/useHelperSearch';
 import HelperResponsePanel from '../components/HelperResponsePanel';
+import AllocatedHospitalCard from '../components/AllocatedHospitalCard';
 import { fetchWithFallback } from '../services/apiClient';
 
 export default function CitizenSosPage({
@@ -377,6 +378,10 @@ export default function CitizenSosPage({
 
         <div className="orchestrator-panel">
           <GpsRadarMap gps={gps} />
+
+          {radar.finalHospital && finalSosId && (
+            <AllocatedHospitalCard finalHospital={radar.finalHospital} sosId={finalSosId} />
+          )}
 
           {finalSosId && (
             <LiveSOSTracker sosId={finalSosId} />

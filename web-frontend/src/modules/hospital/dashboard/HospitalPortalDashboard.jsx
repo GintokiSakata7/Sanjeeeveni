@@ -120,6 +120,16 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
         body: JSON.stringify(payload)
       });
       if (res.ok) {
+        const data = await res.json();
+        
+        // Handle clash resolution logic returned from backend
+        if (data.status === 'REJECTED' && status === 'ACCEPTED') {
+          triggerToast(data.message || 'SOS request was taken by a closer hospital.', 'error');
+          loadData();
+          setSosSubmitting(false);
+          return;
+        }
+
         if (status === 'ACCEPTED' && driverId) {
            await fetchWithFallback(`/api/v1/routing/assign-driver/${sosId}`, {
              method: 'POST',
@@ -563,27 +573,61 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '10px' }}>
                                 <span style={{ 
                                    fontSize: '12px', padding: '4px 10px', borderRadius: '4px', fontWeight: 'bold',
-                                   backgroundColor: (sos.status === 'DOCTOR_ACCEPTED' || sos.doctor_status === 'ACCEPTED') ? 'rgba(52, 211, 153, 0.2)' : 'rgba(234, 179, 8, 0.2)', 
-                                   color: (sos.status === 'DOCTOR_ACCEPTED' || sos.doctor_status === 'ACCEPTED') ? '#34d399' : '#facc15' 
+                                   backgroundColor: 'rgba(59, 130, 246, 0.2)', 
+                                   color: '#60a5fa' 
                                 }}>
-                                   {(sos.status === 'DOCTOR_ACCEPTED' || sos.doctor_status === 'ACCEPTED') ? '✓ Doctor Accepted' : 'Waiting for Doctor'}
+                                   {sos.status}
                                 </span>
-                                {(sos.status === 'DOCTOR_ACCEPTED' || sos.doctor_status === 'ACCEPTED') && (
-                                   <button className="btn-sec" style={{ fontSize: '12px', padding: '6px 12px', borderColor: '#34d399', color: '#34d399' }} onClick={async () => {
-                                      try {
-                                         const res = await fetchWithFallback(`/api/v1/routing/initiate-call/${sos.id}`, { method: 'POST' });
-                                         if (res.ok) {
-                                            triggerToast('📞 Call initiated — patient will be notified', 'success');
-                                         } else {
-                                            triggerToast('Failed to initiate call', 'error');
-                                         }
-                                      } catch (err) {
-                                         triggerToast('Network error initiating call', 'error');
-                                      }
-                                   }}>
-                                      📞 Contact Doctor
-                                   </button>
-                                )}
+                                <div style={{ display: 'flex', gap: '10px' }}>
+                                  {(sos.status === 'DOCTOR_ACCEPTED' || sos.doctor_status === 'ACCEPTED') && (
+                                     <button className="btn-sec" style={{ fontSize: '12px', padding: '6px 12px', borderColor: '#34d399', color: '#34d399' }} onClick={async () => {
+                                        try {
+                                           const res = await fetchWithFallback(`/api/v1/routing/initiate-call/${sos.id}`, { method: 'POST' });
+                                           if (res.ok) {
+                                              triggerToast('📞 Call initiated — patient will be notified', 'success');
+                                           } else {
+                                              triggerToast('Failed to initiate call', 'error');
+                                           }
+                                        } catch (err) {
+                                           triggerToast('Network error initiating call', 'error');
+                                        }
+                                     }}>
+                                        📞 Contact Doctor
+                                     </button>
+                                  )}
+                                  {(sos.status === 'ACCEPTED' || sos.status === 'DOCTOR_ACCEPTED' || sos.status === 'PENDING') && (
+                                     <button className="btn-sec" style={{ fontSize: '12px', padding: '6px 12px', borderColor: '#60a5fa', color: '#60a5fa', backgroundColor: 'rgba(59, 130, 246, 0.1)' }} onClick={async () => {
+                                        try {
+                                           const res = await fetchWithFallback(`/api/v1/routing/hospital-dispatch/${sos.id}`, { method: 'POST' });
+                                           if (res.ok) {
+                                              triggerToast('🚑 Ambulance Dispatched', 'success');
+                                           } else {
+                                              triggerToast('Failed to dispatch ambulance', 'error');
+                                           }
+                                        } catch (err) {
+                                           triggerToast('Network error dispatching', 'error');
+                                        }
+                                     }}>
+                                        🚑 Dispatch Ambulance
+                                     </button>
+                                  )}
+                                  {sos.status === 'DISPATCHED' && (
+                                     <button className="btn-sec" style={{ fontSize: '12px', padding: '6px 12px', borderColor: '#f472b6', color: '#f472b6', backgroundColor: 'rgba(244, 114, 182, 0.1)' }} onClick={async () => {
+                                        try {
+                                           const res = await fetchWithFallback(`/api/v1/routing/hospital-pickup/${sos.id}`, { method: 'POST' });
+                                           if (res.ok) {
+                                              triggerToast('✅ Patient Picked Up', 'success');
+                                           } else {
+                                              triggerToast('Failed to mark as picked up', 'error');
+                                           }
+                                        } catch (err) {
+                                           triggerToast('Network error', 'error');
+                                        }
+                                     }}>
+                                        ✅ Mark Picked Up
+                                     </button>
+                                  )}
+                                </div>
                              </div>
                           </div>
                        ))}

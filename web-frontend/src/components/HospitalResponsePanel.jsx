@@ -127,22 +127,7 @@ export default function HospitalResponsePanel({
                 )}
               </div>
 
-              {status === 'PENDING' && !finalHospital && (
-                <div className="hrc-actions">
-                  <button
-                    className="btn-hospital-accept"
-                    onClick={() => onAccept(h.id)}
-                  >
-                    ✅ YES
-                  </button>
-                  <button
-                    className="btn-hospital-reject"
-                    onClick={() => onReject(h.id)}
-                  >
-                    ❌ NO
-                  </button>
-                </div>
-              )}
+              {/* Removed manual YES/NO buttons as the system handles it automatically */}
             </div>
           );
         })}

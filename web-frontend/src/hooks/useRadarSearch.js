@@ -3,11 +3,11 @@ import { fetchWithFallback } from '../services/apiClient';
 import { supabase } from '../services/supabaseClient';
 import { getApiUrl } from '../config';
 
-// Exponential radius steps in meters (50m to 100km)
-const RADIUS_STEPS = [50, 250, 1000, 5000, 25000, 100000];
+// Exponential radius steps in meters (10km to 100km)
+const RADIUS_STEPS = [10000, 25000, 50000, 100000];
 
-// Expansion interval: how long (ms) to wait at each radius before checking for expansion
-const EXPANSION_CHECK_INTERVAL = 3000;
+// Expansion interval: how long (ms) to wait at each radius before checking for expansion (2 minutes)
+const EXPANSION_CHECK_INTERVAL = 120000;
 
 /**
  * Haversine formula — calculates distance in meters between two lat/lon points.
@@ -258,7 +258,6 @@ export default function useRadarSearch() {
       if (accepted.length > 0) {
         const winner = accepted.reduce((best, h) => h.distance < best.distance ? h : best);
         setFinalHospital(winner);
-        setIsSearchActive(false);
 
         if (expansionTimerRef.current) {
           clearInterval(expansionTimerRef.current);
@@ -279,7 +278,20 @@ export default function useRadarSearch() {
     const hospital = (stateRef.current.allHospitals || []).find(h => h.id === hospitalId);
     const name = hospital ? hospital.name : 'Hospital';
 
-    setResponses(prev => ({ ...prev, [hospitalId]: 'REJECTED' }));
+    setResponses(prev => {
+      const updated = { ...prev, [hospitalId]: 'REJECTED' };
+
+      // Re-evaluate winner in case this hospital was the previous winner
+      const accepted = (stateRef.current.allHospitals || []).filter(h => updated[h.id] === 'ACCEPTED');
+      if (accepted.length > 0) {
+        const winner = accepted.reduce((best, h) => h.distance < best.distance ? h : best);
+        setFinalHospital(winner);
+      } else {
+        setFinalHospital(null);
+      }
+
+      return updated;
+    });
     addNotification(`❌ ${name} REJECTED`, 'reject');
   }, [addNotification]);
 
@@ -289,24 +301,24 @@ export default function useRadarSearch() {
    * If all rejected → expand radius. If no hospitals at radius → expand.
    */
   useEffect(() => {
-    // Poll backend for PENDING SOS statuses every 3 seconds
+    // Poll backend for PENDING and ACCEPTED SOS statuses every 2 seconds
     let statusTimer = null;
-    if (isSearchActive && !finalHospital) {
+    if (isSearchActive) {
       statusTimer = setInterval(async () => {
         const state = stateRef.current;
         const currentResponses = state.responses || {};
         
         for (const [hospitalId, status] of Object.entries(currentResponses)) {
-          if (status === 'PENDING') {
+          if (status === 'PENDING' || status === 'ACCEPTED') {
             const sosId = currentResponses[`${hospitalId}_sos_id`];
             if (sosId) {
               try {
                 const res = await fetchWithFallback(`/api/v1/routing/status/${sosId}`);
                 if (res.ok) {
                   const data = await res.json();
-                  if (['ACCEPTED', 'DOCTOR_ACCEPTED', 'DISPATCHED', 'IN_TRANSIT', 'ARRIVED'].includes(data.status) || data.assigned_doctor_name || data.assigned_driver_name) {
+                  if (status === 'PENDING' && (['ACCEPTED', 'DOCTOR_ACCEPTED', 'DISPATCHED', 'IN_TRANSIT', 'ARRIVED'].includes(data.status) || data.assigned_doctor_name || data.assigned_driver_name)) {
                     acceptHospital(hospitalId);
-                  } else if (data.status === 'REJECTED') {
+                  } else if (data.status === 'REJECTED' && status !== 'REJECTED') {
                     rejectHospital(hospitalId);
                   }
                 }
@@ -319,7 +331,7 @@ export default function useRadarSearch() {
       }, 2000); // Polling every 2 seconds
     }
 
-    if (!isSearchActive || finalHospital || allHospitals.length === 0) return;
+    if (!isSearchActive || allHospitals.length === 0) return;
 
     expansionTimerRef.current = setInterval(() => {
       const state = stateRef.current;

@@ -13,6 +13,7 @@ router = APIRouter(prefix="/hospital", tags=["Hospital Management"])
 
 def _network_error_response(e):
     """Returns 503 for network/DNS errors so the frontend falls back to Render."""
+    print(f"DEBUG Supabase Error: {e}", flush=True)
     err_str = str(e).lower()
     is_network_err = any(k in err_str for k in ["getaddrinfo", "connecterror", "connection", "timeout", "network"])
     if is_network_err:
