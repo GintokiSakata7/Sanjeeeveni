@@ -80,68 +80,50 @@ class _UnifiedLoginScreenState extends State<UnifiedLoginScreen> {
 
       switch (_selectedRole) {
         case UserRole.doctor:
-          try {
-            response = await api.loginDoctor(
-              identifier: identifier,
-              password: password,
-            );
-          } catch (_) {
-            // Fallback for offline / mock testing
-            response = {
-              'user_id': identifier,
-              'user_name': 'Dr. Rajesh Sharma, MD',
-              'token': 'mock-doctor-token',
-              'hospital_name': 'Apollo Emergency Trauma Center',
-            };
-          }
+          response = await api.loginDoctor(
+            identifier: identifier,
+            password: password,
+          );
+          
           await prefs.login(
             role: 'doctor',
             userId: response['user_id'] ?? identifier,
-            userName: response['user_name'] ?? 'Dr. Rajesh Sharma, MD',
+            userName: response['user_name'] ?? '',
             token: response['token'] ?? '',
             hospitalId: response['hospital_id'] ?? '',
-            hospitalName: response['hospital_name'] ?? 'Apollo Emergency Trauma Center',
-            specialization: response['specialization'] ?? 'Chief Trauma Surgeon',
-            contactNumber: response['contact_number'] ?? '+91 98490 11223',
-            email: response['email'] ?? 'dr.rajesh@sanjeevani.org',
-            shiftTiming: response['shift_timing'] ?? 'Night Shift (ER Active)',
+            hospitalName: response['hospital_name'] ?? '',
+            specialization: response['specialization'] ?? '',
+            contactNumber: response['contact_number'] ?? '',
+            email: response['email'] ?? '',
+            shiftTiming: response['shift_timing'] ?? '',
           );
           destination = DoctorDashboardScreen(
-            doctorName: response['user_name'] ?? 'Dr. Rajesh Sharma, MD',
-            hospitalName: response['hospital_name'] ?? 'Apollo Emergency Trauma Center',
+            doctorName: response['user_name'] ?? '',
+            hospitalName: response['hospital_name'] ?? '',
           );
           break;
 
         case UserRole.driver:
-          try {
-            response = await api.loginDriver(
-              identifier: identifier,
-              password: password,
-            );
-          } catch (_) {
-            // Fallback for offline / mock testing
-            response = {
-              'user_id': identifier,
-              'user_name': 'Suresh Kumar',
-              'badge_id': identifier,
-              'token': 'mock-driver-token',
-            };
-          }
+          response = await api.loginDriver(
+            identifier: identifier,
+            password: password,
+          );
+
           await prefs.login(
             role: 'driver',
             userId: response['user_id'] ?? identifier,
-            userName: response['user_name'] ?? 'Suresh Kumar',
+            userName: response['user_name'] ?? '',
             token: response['token'] ?? '',
             hospitalId: response['hospital_id'] ?? '',
-            hospitalName: response['hospital_name'] ?? 'Apollo Emergency Trauma Center',
-            contactNumber: response['contact_number'] ?? '+91 98490 33445',
-            email: response['email'] ?? 'driver.suresh@sanjeevani.org',
+            hospitalName: response['hospital_name'] ?? '',
+            contactNumber: response['contact_number'] ?? '',
+            email: response['email'] ?? '',
             badgeId: response['badge_id'] ?? identifier,
-            licenseNumber: response['license_number'] ?? 'DL-09-2022-88190',
-            shiftTiming: response['shift_timing'] ?? 'Night Shift (08:00 PM - 08:00 AM)',
+            licenseNumber: response['license_number'] ?? '',
+            assignedAmbulanceId: response['assigned_ambulance_id'] ?? '',
           );
           destination = DriverDashboardScreen(
-            driverName: response['user_name'] ?? 'Suresh Kumar',
+            driverName: response['user_name'] ?? '',
             badgeId: response['badge_id'] ?? identifier,
           );
           break;
