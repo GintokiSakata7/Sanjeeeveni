@@ -48,20 +48,14 @@ Rules:
 
 async def classify_intent(text: str, language: str = "English") -> Dict[str, Any]:
     """
-    Classifies emergency intent using Groq Llama 3.3 70B (fastest),
-    falling back to Gemini, then rule-based engine.
+    Classifies emergency intent using Groq Llama 3 8B (fastest),
+    falling back to rule-based engine. (Gemini disabled per user request)
     """
     if GROQ_API_KEY:
         try:
             return await _groq_classify(text, language)
         except Exception as e:
-            logger.warning(f"[Intent] Groq classification failed: {e}. Trying Gemini...")
-
-    if GEMINI_API_KEY:
-        try:
-            return await _gemini_classify(text, language)
-        except Exception as e:
-            logger.warning(f"[Intent] Gemini classification failed: {e}. Using rule engine...")
+            logger.warning(f"[Intent] Groq classification failed: {e}. Falling back to rule engine...")
 
     return _rule_based_classify(text)
 
@@ -74,7 +68,7 @@ async def _groq_classify(text: str, language: str) -> Dict[str, Any]:
         "Content-Type": "application/json"
     }
     payload = {
-        "model": "llama-3.3-70b-versatile",
+        "model": "llama3-8b-8192",
         "messages": [
             {"role": "system", "content": "You are a JSON-only API. Respond strictly with valid JSON."},
             {"role": "user", "content": prompt}

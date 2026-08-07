@@ -90,44 +90,10 @@ async def analyze_audio_emergency(
 
         return triage_result
 
-    # Gemini direct audio fallback
-    logger.info("[Engine] Whisper failed, using Gemini audio fallback...")
-    return await _gemini_audio_fallback(audio_bytes, mime_type, requested_lang)
+    # Rule engine audio fallback (Gemini direct audio fallback disabled per user request)
+    logger.info("[Engine] Whisper failed, using rule engine fallback...")
+    return await process_triage("Emergency audio call intake.", requested_lang, "GENERAL")
 
-
-async def _gemini_audio_fallback(audio_bytes: bytes, mime_type: str, requested_lang: str) -> Dict[str, Any]:
-    """Direct Gemini multimodal audio analysis as last resort"""
-    import os
-    import json
-    import re
-
-    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-    if not GEMINI_API_KEY:
-        return await process_triage("Emergency call received.", requested_lang, "GENERAL")
-
-    try:
-        import google.generativeai as genai
-        genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel(
-            "gemini-2.0-flash-lite",
-            generation_config={"temperature": 0.2, "response_mime_type": "application/json"}
-        )
-        prompt = """You are an emergency dispatcher AI. Analyze this audio recording from an Indian emergency caller.
-Transcribe and triage it. Return JSON with keys:
-transcribed_text, detected_language, language_code, translated_english, category, severity,
-triage_code, chief_complaint, symptoms, recommended_doctor_specialty, triage_summary,
-first_aid_english (array of {step_number, instruction, icon}),
-first_aid_native (array of {step_number, instruction, icon})"""
-
-        response = model.generate_content([{"mime_type": mime_type, "data": audio_bytes}, prompt])
-        raw = re.sub(r"^```[a-z]*\n?", "", response.text.strip())
-        raw = re.sub(r"\n?```$", "", raw)
-        result = json.loads(raw)
-        result["national_helplines"] = _get_national_helplines()
-        return result
-    except Exception as e:
-        logger.error(f"[Engine] Gemini audio fallback failed: {e}")
-        return await process_triage("Emergency call received.", requested_lang, "GENERAL")
 
 
 def _get_national_helplines() -> list:
