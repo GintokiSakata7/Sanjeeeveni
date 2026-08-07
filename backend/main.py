@@ -12,6 +12,7 @@ from typing import List, Dict, Any
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, status, Depends
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
@@ -95,6 +96,14 @@ def health_check():
         "system": "AERO - Real AI Emergency Classification Engine (SQLModel)",
         "timestamp": datetime.now().isoformat()
     }
+
+@app.get("/test-webrtc")
+async def serve_webrtc_test():
+    """Serves the standalone WebRTC testing HTML page."""
+    file_path = os.path.join(os.path.dirname(__file__), "static", "webrtc_test.html")
+    if os.path.exists(file_path):
+        return FileResponse(file_path)
+    raise HTTPException(status_code=404, detail="Test file not found")
 
 @app.post("/api/emergency/sos", response_model=AITriageResult)
 async def create_sos_case(payload: SOSRequest, db: Client = Depends(get_supabase)):

@@ -5,44 +5,37 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WebRTC Voice Call Example</title>
     <style>
-        body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
-
-        button { padding: 10px 20px; font-size: 16px; margin: 10px; cursor: pointer; }
-        #status { margin-top: 20px; font-weight: bold; }
+        body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; background-color: #0f172a; color: white; }
+        button { padding: 10px 20px; font-size: 16px; margin: 10px; cursor: pointer; border-radius: 8px; border: none; font-weight: bold; }
+        #startCall { background-color: #10b981; color: white; }
+        #endCall { background-color: #ef4444; color: white; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        #status { margin-top: 20px; font-weight: bold; color: #38bdf8; }
     </style>
 </head>
 <body>
-    <h1>Voice Call App</h1>
+    <h1>Standalone WebRTC Voice Call Test</h1>
+    <p>Open this page in two different browser tabs to test peer-to-peer audio.</p>
     <div>
         <button id="startCall" disabled>Start Call</button>
-        <button id="acceptCall" style="display: none; background-color: #f59e0b; color: white;">Accept Call</button>
         <button id="endCall" disabled>End Call</button>
     </div>
     <div id="status">Connecting to signaling server...</div>
-    <canvas id="visualizer" width="400" height="150" style="display: block; margin: 20px auto; background: #1e293b; border-radius: 8px; border: 1px solid #334155;"></canvas>
     <audio id="remoteAudio" autoplay></audio>
 
     <script>
-        // Dynamically connect to the WebSocket on the same host and port
+        // Connect to the new /api/v1/ws/test endpoint on the FastAPI server
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${protocol}//${window.location.host}/ws`;
+        const wsUrl = `${protocol}//${window.location.host}/api/v1/ws/test`;
         const ws = new WebSocket(wsUrl);
         
         const startCallBtn = document.getElementById('startCall');
-        const acceptCallBtn = document.getElementById('acceptCall');
         const endCallBtn = document.getElementById('endCall');
         const remoteAudio = document.getElementById('remoteAudio');
         const statusDiv = document.getElementById('status');
 
         let localStream;
         let peerConnection;
-        let pendingOffer = null;
-        let pendingCandidates = [];
-        
-        // Audio visualizer variables
-        let audioCtx;
-        let analyser;
-        let animationId;
 
         // Using Google's public STUN server for ICE candidate discovery
         const configuration = {
@@ -59,7 +52,6 @@
             statusDiv.textContent = 'Disconnected from signaling server.';
             startCallBtn.disabled = true;
             endCallBtn.disabled = true;
-            acceptCallBtn.style.display = 'none';
         };
 
         // Handle messages from the signaling server
@@ -68,10 +60,8 @@
             console.log('Received message:', message.type);
 
             if (message.type === 'offer') {
-                statusDiv.textContent = 'Incoming call... Click Accept!';
-                pendingOffer = message.offer;
-                startCallBtn.style.display = 'none';
-                acceptCallBtn.style.display = 'inline-block';
+                statusDiv.textContent = 'Incoming call...';
+                await handleOffer(message.offer);
             } else if (message.type === 'answer') {
                 statusDiv.textContent = 'Call answered.';
                 await handleAnswer(message.answer);
@@ -96,7 +86,6 @@
             // When a remote audio track arrives, play it in the <audio> element
             peerConnection.ontrack = (event) => {
                 remoteAudio.srcObject = event.streams[0];
-                setupVisualizer();
             };
 
             // Get local audio stream
@@ -129,20 +118,10 @@
             }));
         };
 
-        // Callee clicks "Accept Call"
-        acceptCallBtn.onclick = async () => {
-            acceptCallBtn.style.display = 'none';
-            endCallBtn.disabled = false;
-            statusDiv.textContent = 'Connecting...';
-            
+        // Callee receives an offer
+        async function handleOffer(offer) {
             await createPeerConnection();
-            await peerConnection.setRemoteDescription(new RTCSessionDescription(pendingOffer));
-            
-            // Process any ICE candidates that arrived before we accepted
-            for (const c of pendingCandidates) {
-                await peerConnection.addIceCandidate(new RTCIceCandidate(c));
-            }
-            pendingCandidates = [];
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
             
             // Create an answer and send it back
             const answer = await peerConnection.createAnswer();
@@ -153,27 +132,20 @@
                 answer: answer
             }));
             
+            startCallBtn.disabled = true;
+            endCallBtn.disabled = false;
             statusDiv.textContent = 'In call';
-        };
+        }
 
         // Caller receives the answer
         async function handleAnswer(answer) {
             await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
-            
-            // Process any ICE candidates that arrived before the answer
-            for (const c of pendingCandidates) {
-                await peerConnection.addIceCandidate(new RTCIceCandidate(c));
-            }
-            pendingCandidates = [];
         }
 
         // Both peers exchange ICE candidates
         async function handleCandidate(candidate) {
-            if (peerConnection && peerConnection.remoteDescription) {
+            if (peerConnection) {
                 await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-            } else {
-                // Queue candidate if remote description isn't set yet
-                pendingCandidates.push(candidate);
             }
         }
 
@@ -187,74 +159,10 @@
                 localStream.getTracks().forEach(track => track.stop());
             }
             remoteAudio.srcObject = null;
-            
-            // Stop visualizer
-            if (animationId) cancelAnimationFrame(animationId);
-            const canvas = document.getElementById('visualizer');
-            const canvasCtx = canvas.getContext('2d');
-            canvasCtx.fillStyle = '#1e293b';
-            canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
-
             startCallBtn.disabled = false;
-            startCallBtn.style.display = 'inline-block';
             endCallBtn.disabled = true;
-            acceptCallBtn.style.display = 'none';
-            pendingOffer = null;
-            pendingCandidates = [];
             statusDiv.textContent = 'Call ended.';
         };
-
-        // --- Audio Visualizer ---
-        function setupVisualizer() {
-            if (animationId) return; // already running
-
-            const canvas = document.getElementById('visualizer');
-            const canvasCtx = canvas.getContext('2d');
-            const audioElement = document.getElementById('remoteAudio');
-
-            if (!audioCtx) {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            }
-            if (audioCtx.state === 'suspended') {
-                audioCtx.resume();
-            }
-            
-            // Use MediaElementSource to avoid Chrome bug with WebRTC streams
-            // Only create it once per audio element
-            if (!analyser) {
-                const source = audioCtx.createMediaElementSource(audioElement);
-                analyser = audioCtx.createAnalyser();
-                source.connect(analyser);
-                analyser.connect(audioCtx.destination); // Required for MediaElementSource
-                analyser.fftSize = 256;
-            }
-            
-            const bufferLength = analyser.frequencyBinCount;
-            const dataArray = new Uint8Array(bufferLength);
-            
-            function draw() {
-                animationId = requestAnimationFrame(draw);
-                analyser.getByteFrequencyData(dataArray);
-                
-                canvasCtx.fillStyle = '#1e293b';
-                canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
-                
-                const barWidth = (canvas.width / bufferLength) * 2.5;
-                let barHeight;
-                let x = 0;
-                
-                for (let i = 0; i < bufferLength; i++) {
-                    barHeight = dataArray[i];
-                    
-                    // Create a dynamic color gradient
-                    canvasCtx.fillStyle = `rgb(${barHeight + 50}, 150, 250)`;
-                    canvasCtx.fillRect(x, canvas.height - barHeight / 2, barWidth, barHeight / 2);
-                    
-                    x += barWidth + 1;
-                }
-            }
-            draw();
-        }
     </script>
 </body>
 </html>
