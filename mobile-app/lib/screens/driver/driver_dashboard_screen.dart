@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../models/emergency_case.dart';
+import '../../services/api_service.dart';
 import '../../services/location_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/preferences_service.dart';
@@ -43,11 +44,49 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
     'Arrived at Hospital & Handoff to ER Physician',
   ];
 
+  EmergencyCase _createDefaultCase() {
+    return EmergencyCase(
+      id: 'EMG-STANDBY-01',
+      patientName: 'Standby Emergency Intake',
+      patientAge: 40,
+      patientGender: 'Emergency',
+      bloodGroup: 'O+',
+      emergencyType: 'Green Corridor Dispatch Standby',
+      severity: 'MODERATE',
+      locationAddress: 'Hyderabad Metropolitan Area',
+      latitude: 17.4126,
+      longitude: 78.4482,
+      distanceKm: 1.5,
+      etaMinutes: 5,
+      vitals: {'Status': 'Awaiting Active Dispatch'},
+      reportedSymptoms: ['Standby for incoming emergency call'],
+      assignedAmbulanceUnit: widget.ambulanceUnit,
+      assignedHospital: 'Sanjeevani ER Center',
+      callerPhone: '+91 98765 43210',
+      status: 'STANDBY',
+      timestamp: DateTime.now(),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
-    _activeCase = EmergencyCase.getMockCases().first;
+    _activeCase = _createDefaultCase();
+    _loadLiveDriverCase();
     _fetchDriverGps();
+  }
+
+  Future<void> _loadLiveDriverCase() async {
+    try {
+      final res = await ApiService().getLiveCases();
+      final list = res['cases'] as List? ?? [];
+      if (list.isNotEmpty && mounted) {
+        setState(() {
+          _activeCase = EmergencyCase.fromJson(list.first as Map<String, dynamic>);
+        });
+        _fetchDriverGps();
+      }
+    } catch (_) {}
   }
 
   Future<void> _fetchDriverGps() async {

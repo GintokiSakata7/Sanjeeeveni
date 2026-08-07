@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
@@ -31,7 +32,7 @@ class ApiService {
         ? [_workingBaseUrl!, ..._candidateUrls.where((u) => u != _workingBaseUrl)]
         : _candidateUrls;
 
-    Exception? lastException;
+    Object? lastError;
 
     for (final base in targets) {
       final url = Uri.parse('$base$path');
@@ -42,7 +43,7 @@ class ApiService {
               headers: {'Content-Type': 'application/json'},
               body: jsonEncode(body),
             )
-            .timeout(const Duration(seconds: 4));
+            .timeout(const Duration(seconds: 10));
 
         final decoded = jsonDecode(response.body) as Map<String, dynamic>;
 
@@ -62,27 +63,31 @@ class ApiService {
           }
         }
         throw ApiException(errorMsg, response.statusCode);
-      } on ApiException catch (e) {
-        // HTTP response received (e.g. 401 Unauthorized), so target URL is valid!
+      } on ApiException {
+        // HTTP response received from server (e.g. 401 Unauthorized), host is valid!
         _workingBaseUrl = base;
         rethrow;
+      } on TimeoutException catch (e) {
+        lastError = e;
+        continue; // Try next candidate URL
       } on SocketException catch (e) {
-        lastException = e;
+        lastError = e;
         continue; // Try next candidate URL
       } on http.ClientException catch (e) {
-        lastException = e;
+        lastError = e;
         continue; // Try next candidate URL
       } catch (e) {
         if (e is FormatException) {
-          throw ApiException('Invalid response from server.', 0);
+          throw ApiException('Invalid JSON response from server.', 0);
         }
-        lastException = Exception(e.toString());
+        lastError = e;
+        continue;
       }
     }
 
     throw ApiException(
-      'Cannot connect to backend server at any host (127.0.0.1 / 10.0.2.2).\n'
-      'Ensure uvicorn is running on port 8000 and USB debugging / Wi-Fi is active.',
+      'Cannot connect to backend server.\n'
+      'Ensure uvicorn is running on port 8000 (Details: ${lastError ?? "Host unreachable"})',
       0,
     );
   }
@@ -152,6 +157,47 @@ class ApiService {
       'phone': phone,
       'password': password,
     });
+  }
+
+  // ──────────────────────────────────────────
+  // 🚨 GET HELPERS (GET REQUEST)
+  // ──────────────────────────────────────────
+  Future<Map<String, dynamic>> _get(String path) async {
+    final targets = _workingBaseUrl != null
+        ? [_workingBaseUrl!, ..._candidateUrls.where((u) => u != _workingBaseUrl)]
+        : _candidateUrls;
+
+    for (final base in targets) {
+      final url = Uri.parse('$base$path');
+      try {
+        final response = await http
+            .get(url, headers: {'Accept': 'application/json'})
+            .timeout(const Duration(seconds: 10));
+
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          _workingBaseUrl = base;
+          return jsonDecode(response.body) as Map<String, dynamic>;
+        }
+      } catch (_) {
+        continue;
+      }
+    }
+    return {'total': 0, 'cases': []};
+  }
+
+  /// Get real-time emergency cases appointed to a specific doctor by HMS Admin.
+  Future<Map<String, dynamic>> getDoctorAssignedCases(String doctorId) async {
+    return _get('/api/v1/mobile/doctor/assigned-cases/$doctorId');
+  }
+
+  /// Confirm & accept assigned emergency case on doctor mobile app.
+  Future<Map<String, dynamic>> acceptDoctorCase(String sosId) async {
+    return _post('/api/v1/mobile/doctor/accept-case/$sosId', {});
+  }
+
+  /// Get live emergency cases for drivers and community helpers.
+  Future<Map<String, dynamic>> getLiveCases() async {
+    return _get('/api/v1/mobile/cases/live');
   }
 }
 

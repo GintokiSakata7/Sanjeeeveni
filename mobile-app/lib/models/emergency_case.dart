@@ -45,6 +45,60 @@ class EmergencyCase {
     required this.timestamp,
   });
 
+  factory EmergencyCase.fromJson(Map<String, dynamic> json) {
+    Map<String, String> parsedVitals = {};
+    if (json['vitals'] is Map) {
+      (json['vitals'] as Map).forEach((k, v) {
+        parsedVitals[k.toString()] = v.toString();
+      });
+    } else {
+      parsedVitals = {
+        'Pulse': '112 bpm',
+        'BP': '98/62 mmHg',
+        'SpO2': '94%',
+        'Resp Rate': '22 /min'
+      };
+    }
+
+    List<String> symptoms = [];
+    if (json['reported_symptoms'] is List) {
+      symptoms = (json['reported_symptoms'] as List).map((e) => e.toString()).toList();
+    } else if (json['symptoms'] is List) {
+      symptoms = (json['symptoms'] as List).map((e) => e.toString()).toList();
+    } else {
+      symptoms = [json['emergency_type']?.toString() ?? 'Emergency Intake'];
+    }
+
+    DateTime parsedTime = DateTime.now();
+    if (json['timestamp'] != null) {
+      try {
+        parsedTime = DateTime.parse(json['timestamp'].toString());
+      } catch (_) {}
+    }
+
+    return EmergencyCase(
+      id: json['id']?.toString() ?? json['case_id']?.toString() ?? 'EMG-LIVE',
+      patientName: json['patient_name']?.toString() ?? 'Emergency Victim',
+      patientAge: json['patient_age'] is int ? json['patient_age'] : 45,
+      patientGender: json['patient_gender']?.toString() ?? 'Emergency Intake',
+      bloodGroup: json['blood_group']?.toString() ?? 'O+',
+      emergencyType: json['emergency_type']?.toString() ?? 'Severe Emergency',
+      severity: json['severity']?.toString() ?? json['triage_urgency']?.toString() ?? 'CRITICAL',
+      locationAddress: json['location_address']?.toString() ?? 'Emergency Scene Coordinates',
+      latitude: (json['latitude'] ?? json['patient_lat'] ?? 17.4156).toDouble(),
+      longitude: (json['longitude'] ?? json['patient_lng'] ?? 78.4357).toDouble(),
+      distanceKm: (json['distance_km'] ?? 1.5).toDouble(),
+      etaMinutes: json['eta_minutes'] is int ? json['eta_minutes'] : 5,
+      vitals: parsedVitals,
+      reportedSymptoms: symptoms,
+      assignedAmbulanceUnit: json['assigned_ambulance_unit']?.toString() ?? 'ALS-108-HYD-04',
+      assignedHospital: json['assigned_hospital']?.toString() ?? 'Apollo Emergency Center',
+      callerPhone: json['caller_phone']?.toString() ?? '+91 98765 43210',
+      status: json['status']?.toString() ?? 'PENDING',
+      timestamp: parsedTime,
+    );
+  }
+
   EmergencyCase copyWith({
     String? status,
     bool? helperAccepted,

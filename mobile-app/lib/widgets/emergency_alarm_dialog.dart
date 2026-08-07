@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/emergency_case.dart';
 
 class EmergencyAlarmDialog extends StatefulWidget {
@@ -22,6 +24,7 @@ class _EmergencyAlarmDialogState extends State<EmergencyAlarmDialog>
   late AnimationController _pulseController;
   late Animation<double> _scaleAnimation;
   late Animation<double> _glowAnimation;
+  Timer? _audioTimer;
 
   @override
   void initState() {
@@ -38,10 +41,24 @@ class _EmergencyAlarmDialogState extends State<EmergencyAlarmDialog>
     _glowAnimation = Tween<double>(begin: 4.0, end: 18.0).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
+
+    // 🔊 Play audio siren alert & haptic vibration repeatedly every 1 second
+    _playAlertSound();
+    _audioTimer = Timer.periodic(const Duration(milliseconds: 1000), (timer) {
+      _playAlertSound();
+    });
+  }
+
+  void _playAlertSound() {
+    try {
+      SystemSound.play(SystemSoundType.alert);
+      HapticFeedback.heavyImpact();
+    } catch (_) {}
   }
 
   @override
   void dispose() {
+    _audioTimer?.cancel();
     _pulseController.dispose();
     super.dispose();
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../models/emergency_case.dart';
+import '../../services/api_service.dart';
 import '../../services/location_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/preferences_service.dart';
@@ -24,7 +25,7 @@ class HelperDashboardScreen extends StatefulWidget {
 
 class _HelperDashboardScreenState extends State<HelperDashboardScreen> {
   final PreferencesService _prefs = PreferencesService();
-  late List<EmergencyCase> _nearbyCases;
+  List<EmergencyCase> _nearbyCases = [];
   EmergencyCase? _acceptedCase;
   Position? _currentGpsPosition;
   String _calculatedDistanceText = '';
@@ -34,8 +35,23 @@ class _HelperDashboardScreenState extends State<HelperDashboardScreen> {
   @override
   void initState() {
     super.initState();
-    _nearbyCases = EmergencyCase.getMockCases();
+    _loadLiveHelperCases();
     _fetchHelperGps();
+  }
+
+  Future<void> _loadLiveHelperCases() async {
+    try {
+      final res = await ApiService().getLiveCases();
+      final list = res['cases'] as List? ?? [];
+      if (mounted) {
+        setState(() {
+          _nearbyCases = list.map((e) => EmergencyCase.fromJson(e as Map<String, dynamic>)).toList();
+        });
+        if (_currentGpsPosition != null) {
+          _updateDistancesWithRealGps(_currentGpsPosition!);
+        }
+      }
+    } catch (_) {}
   }
 
   Future<void> _fetchHelperGps() async {

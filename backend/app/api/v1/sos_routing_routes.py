@@ -59,8 +59,8 @@ def respond_to_sos(sos_id: str, payload: SOSResponsePayload, db: Session = Depen
     if not sos_request:
         raise HTTPException(status_code=404, detail="SOS request not found.")
     
-    if sos_request.status != "PENDING":
-        raise HTTPException(status_code=400, detail="SOS request already processed.")
+    if sos_request.status not in ["PENDING", "ACCEPTED"]:
+        raise HTTPException(status_code=400, detail=f"SOS request is currently in status '{sos_request.status}' and cannot be reassigned.")
 
     sos_request.status = payload.status
     sos_request.updated_at = datetime.utcnow()

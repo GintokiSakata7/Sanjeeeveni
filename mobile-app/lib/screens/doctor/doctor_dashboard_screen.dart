@@ -1,9 +1,12 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../models/emergency_case.dart';
+import '../../services/api_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/preferences_service.dart';
 import '../../widgets/app_toast.dart';
+import '../../widgets/emergency_alarm_dialog.dart';
 import '../auth/unified_login_screen.dart';
 
 class DoctorDashboardScreen extends StatefulWidget {
@@ -12,8 +15,8 @@ class DoctorDashboardScreen extends StatefulWidget {
 
   const DoctorDashboardScreen({
     super.key,
-    this.doctorName = 'Dr. Rajesh Sharma, MD',
-    this.hospitalName = 'Apollo Emergency Trauma Center',
+    this.doctorName = 'Doctor',
+    this.hospitalName = 'Hospital',
   });
 
   @override
@@ -21,19 +24,106 @@ class DoctorDashboardScreen extends StatefulWidget {
 }
 
 class _DoctorDashboardScreenState extends State<DoctorDashboardScreen> {
-  late List<EmergencyCase> _cases;
+  final PreferencesService _prefs = PreferencesService();
+  final ApiService _api = ApiService();
+
+  List<EmergencyCase> _cases = [];
   int _selectedIndex = 0;
   final Set<String> _acceptedCaseIds = {};
+  final Set<String> _seenCaseIds = {};
   final Map<String, Map<String, String>> _dynamicVitals = {};
   DateTime? _lastBackPressTime;
+  Timer? _pollTimer;
+  bool _isAlarmShowing = false;
 
   @override
   void initState() {
     super.initState();
-    _cases = EmergencyCase.getMockCases();
-    for (var c in _cases) {
-      _dynamicVitals[c.id] = Map<String, String>.from(c.vitals);
-    }
+    _fetchDoctorCases();
+    // Poll for assigned cases every 3 seconds
+    _pollTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
+      _fetchDoctorCases();
+    });
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _fetchDoctorCases() async {
+    final doctorId = _prefs.loggedInUserId;
+    if (doctorId.isEmpty) return;
+
+    try {
+      final data = await _api.getDoctorAssignedCases(doctorId);
+      final rawList = data['cases'] as List? ?? [];
+      final loadedCases = rawList.map((e) => EmergencyCase.fromJson(e as Map<String, dynamic>)).toList();
+
+      if (!mounted) return;
+
+      setState(() {
+        _cases = loadedCases;
+        for (var c in _cases) {
+          if (!_dynamicVitals.containsKey(c.id)) {
+            _dynamicVitals[c.id] = Map<String, String>.from(c.vitals);
+          }
+        }
+      });
+
+      // Mark already-accepted cases as seen so old historical cases don't re-trigger
+      for (var c in loadedCases) {
+        if (c.status == 'DOCTOR_ACCEPTED') {
+          _seenCaseIds.add(c.id);
+        }
+      }
+
+      // Check for newly appointed cases needing doctor response to trigger the Alarm Dialog + Sound
+      for (var c in loadedCases) {
+        if ((!_seenCaseIds.contains(c.id) || c.status == 'ACCEPTED') && !_isAlarmShowing) {
+          _seenCaseIds.add(c.id);
+          _triggerEmergencyAlarm(c);
+          break;
+        }
+      }
+    } catch (_) {}
+  }
+
+  void _triggerEmergencyAlarm(EmergencyCase ec) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _isAlarmShowing) return;
+      setState(() => _isAlarmShowing = true);
+
+      // Trigger top notification banner as well
+      NotificationService.showInAppAlert(
+        context,
+        title: '🚨 EMERGENCY DISPATCH ALARM',
+        message: 'You have been appointed to ${ec.patientName} (${ec.severity}). Triage incoming!',
+        icon: Icons.notifications_active,
+        backgroundColor: const Color(0xFFDC2626),
+      );
+
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => EmergencyAlarmDialog(
+          emergencyCase: ec,
+          onAccept: () async {
+            Navigator.of(ctx).pop();
+            if (mounted) setState(() => _isAlarmShowing = false);
+            _acceptPatient(ec);
+            try {
+              await _api.acceptDoctorCase(ec.id);
+            } catch (_) {}
+          },
+          onDismiss: () {
+            Navigator.of(ctx).pop();
+            if (mounted) setState(() => _isAlarmShowing = false);
+          },
+        ),
+      );
+    });
   }
 
   void _acceptPatient(EmergencyCase ec) {
@@ -235,7 +325,82 @@ class _DoctorDashboardScreenState extends State<DoctorDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final currentCase = _cases[_selectedIndex];
+    if (_cases.isEmpty) {
+      return PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, result) {
+          if (didPop) return;
+          final now = DateTime.now();
+          if (_lastBackPressTime == null ||
+              now.difference(_lastBackPressTime!) > const Duration(seconds: 2)) {
+            _lastBackPressTime = now;
+            AppToast.show(context);
+          } else {
+            SystemNavigator.pop();
+          }
+        },
+        child: Scaffold(
+          backgroundColor: const Color(0xFF0F172A),
+          appBar: AppBar(
+            backgroundColor: const Color(0xFF0F172A),
+            elevation: 0,
+            automaticallyImplyLeading: false,
+            title: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.doctorName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  widget.hospitalName,
+                  style: const TextStyle(
+                    color: Color(0xFF94A3B8),
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.logout, color: Color(0xFFEF4444)),
+                onPressed: _handleLogout,
+                tooltip: 'Logout',
+              ),
+            ],
+          ),
+          body: const Center(
+            child: Padding(
+              padding: EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.medical_services_outlined, size: 64, color: Color(0xFF64748B)),
+                  SizedBox(height: 16),
+                  Text(
+                    'No Active Case Assigned',
+                    style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Standing by on Green Corridor Duty.\nWhen Hospital Admin appoints you to a case, your emergency alarm will ring.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    final safeIndex = _selectedIndex < _cases.length ? _selectedIndex : 0;
+    final currentCase = _cases[safeIndex];
     final isAccepted = _acceptedCaseIds.contains(currentCase.id);
     final vitals = _dynamicVitals[currentCase.id] ?? currentCase.vitals;
 
