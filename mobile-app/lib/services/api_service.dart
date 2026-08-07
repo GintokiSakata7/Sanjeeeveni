@@ -13,16 +13,22 @@ class ApiService {
 
   String? _workingBaseUrl;
 
-  /// Candidate URLs to try depending on environment
+  /// Candidate URLs to try depending on environment (Local first, then Render cloud fallback)
   List<String> get _candidateUrls {
+    const renderUrl = 'https://sanjeeeveni.onrender.com';
     if (kIsWeb) {
-      return ['http://localhost:8000', 'http://127.0.0.1:8000'];
+      return [
+        'http://localhost:8000',
+        'http://127.0.0.1:8000',
+        renderUrl,
+      ];
     }
     return [
       'http://127.0.0.1:8000',     // ADB reverse (physical device over USB) / Local PC
       'http://10.0.2.2:8000',      // Android Emulator standard loopback
       'http://172.30.187.129:8000', // Wi-Fi LAN IP fallback
       'http://localhost:8000',
+      renderUrl,                   // Deployed Render Cloud Fallback
     ];
   }
 

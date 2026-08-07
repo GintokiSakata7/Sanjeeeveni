@@ -232,7 +232,7 @@ export default function CitizenSosPage({
       }
     } catch (err) {
       console.error("Error submitting SOS:", err);
-      alert("Unable to connect to AERO AI FastAPI server on http://localhost:8000.");
+      alert("Unable to connect to AERO AI FastAPI server (tried local server and Render cloud fallback).");
     } finally {
       setLoading(false);
     }

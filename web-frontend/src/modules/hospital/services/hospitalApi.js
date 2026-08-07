@@ -1,4 +1,6 @@
-const API_BASE_URL = 'http://localhost:8000/api/v1/hospital';
+import { fetchWithFallback } from '../../../services/apiClient';
+
+const API_ROUTE_PREFIX = '/api/v1/hospital';
 
 const formatErrorDetail = (detail, fallbackMsg) => {
   if (!detail) return fallbackMsg;
@@ -75,7 +77,7 @@ export const registerHospital = async (formData) => {
     }
   };
 
-  const response = await fetch(`${API_BASE_URL}/register`, {
+  const response = await fetchWithFallback(`${API_ROUTE_PREFIX}/register`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
@@ -92,7 +94,7 @@ export const registerHospital = async (formData) => {
 };
 
 export const loginHospital = async (email, password) => {
-  const response = await fetch(`${API_BASE_URL}/login`, {
+  const response = await fetchWithFallback(`${API_ROUTE_PREFIX}/login`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
@@ -112,7 +114,7 @@ export const uploadDocument = async (file) => {
   const body = new FormData();
   body.append('file', file);
 
-  const response = await fetch(`${API_BASE_URL}/upload-doc`, {
+  const response = await fetchWithFallback(`${API_ROUTE_PREFIX}/upload-doc`, {
     method: 'POST',
     body
   });
@@ -126,10 +128,11 @@ export const uploadDocument = async (file) => {
 };
 
 export const checkVerificationStatus = async (hospitalId) => {
-  const response = await fetch(`${API_BASE_URL}/verification-status/${hospitalId}`);
+  const response = await fetchWithFallback(`${API_ROUTE_PREFIX}/verification-status/${hospitalId}`);
   const data = await response.json();
   if (!response.ok) {
     throw new Error(formatErrorDetail(data.detail, 'Unable to fetch status.'));
   }
   return data;
 };
+

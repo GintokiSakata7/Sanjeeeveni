@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 
 import IncomingSOSAlert from '../components/IncomingSOSAlert';
+import { fetchWithFallback } from '../../../services/apiClient';
 
 export default function HospitalPortalDashboard({ hospitalSession, onLogout, onBackToCitizen }) {
   const hospitalId = hospitalSession?.hospital_id || 'HOSP-DEFAULT';
@@ -60,7 +61,7 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
 
     const pollSOS = async () => {
       try {
-        const res = await fetch(`http://localhost:8000/api/v1/routing/pending/${hospitalId}`);
+        const res = await fetchWithFallback(`/api/v1/routing/pending/${hospitalId}`);
         if (res.ok) {
           const requests = await res.json();
           if (requests && requests.length > 0) {
@@ -84,7 +85,7 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
   const handleRespondToSOS = async (sosId, status, doctorId = null) => {
     try {
       const payload = { status, doctor_id: doctorId };
-      const res = await fetch(`http://localhost:8000/api/v1/routing/respond/${sosId}`, {
+      const res = await fetchWithFallback(`/api/v1/routing/respond/${sosId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -104,31 +105,24 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
   const triggerToast = (msg, type = 'success') => {
     setToast({ show: true, message: msg, type });
-    setTimeout(() => setToast((prev) => ({ ...prev, show: false })), 4000);
+    setTimeout(() => setToast((prev) => ({ ...prev, show: false })), 3500);
   };
 
-  // Modals state
+  // Copy helper
+  const [copiedField, setCopiedField] = useState(null);
+  const handleCopy = (text, fieldName) => {
+    navigator.clipboard.writeText(text);
+    setCopiedField(fieldName);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
+
+  // Modal States
   const [showDoctorModal, setShowDoctorModal] = useState(false);
   const [showDriverModal, setShowDriverModal] = useState(false);
   const [showAmbulanceModal, setShowAmbulanceModal] = useState(false);
+  const [showApiKey, setShowApiKey] = useState(false);
 
-  // Password visibility toggles
-  const [showDoctorPwd, setShowDoctorPwd] = useState(false);
-  const [showDriverPwd, setShowDriverPwd] = useState(false);
-
-  // Standard 12-hour time formatter for standard time picker input
-  const formatTime12h = (time24) => {
-    if (!time24) return '08:00 AM';
-    const parts = time24.split(':');
-    let h = parseInt(parts[0] || '8', 10);
-    const m = parts[1] || '00';
-    const period = h >= 12 ? 'PM' : 'AM';
-    h = h % 12 || 12;
-    const hours12 = h < 10 ? `0${h}` : `${h}`;
-    return `${hours12}:${m} ${period}`;
-  };
-
-  // Forms State
+  // Form States
   const [doctorForm, setDoctorForm] = useState({
     name: '',
     specialization: 'General Medicine',
@@ -167,10 +161,10 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
     setIsLoading(true);
     try {
       const [statsRes, docRes, drvRes, ambRes] = await Promise.all([
-        fetch(`http://localhost:8000/api/v1/hms/overview-stats/${hospitalId}`),
-        fetch(`http://localhost:8000/api/v1/hms/doctors/${hospitalId}`),
-        fetch(`http://localhost:8000/api/v1/hms/drivers/${hospitalId}`),
-        fetch(`http://localhost:8000/api/v1/hms/ambulances/${hospitalId}`)
+        fetchWithFallback(`/api/v1/hms/overview-stats/${hospitalId}`),
+        fetchWithFallback(`/api/v1/hms/doctors/${hospitalId}`),
+        fetchWithFallback(`/api/v1/hms/drivers/${hospitalId}`),
+        fetchWithFallback(`/api/v1/hms/ambulances/${hospitalId}`)
       ]);
 
       if (statsRes.ok) setStats(await statsRes.json());
@@ -194,7 +188,7 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
     try {
       // Strip internal-only time picker fields before sending to backend
       const { shift_start, shift_end, ...doctorPayload } = doctorForm;
-      const res = await fetch('http://localhost:8000/api/v1/hms/doctors', {
+      const res = await fetchWithFallback('/api/v1/hms/doctors', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...doctorPayload, hospital_id: hospitalId })
@@ -224,7 +218,7 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
       // Strip internal-only time picker fields, and null out optional empty strings
       const { shift_start, shift_end, ...driverPayload } = driverForm;
       if (!driverPayload.email) driverPayload.email = null;
-      const res = await fetch('http://localhost:8000/api/v1/hms/drivers', {
+      const res = await fetchWithFallback('/api/v1/hms/drivers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...driverPayload, hospital_id: hospitalId })
@@ -251,7 +245,7 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
   const handleAddAmbulance = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch('http://localhost:8000/api/v1/hms/ambulances', {
+      const res = await fetchWithFallback('/api/v1/hms/ambulances', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...ambulanceForm, hospital_id: hospitalId })
@@ -270,7 +264,7 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
   const handleDeleteDoctor = async (id, name) => {
     if (!window.confirm(`Delete Dr. ${name} from roster?`)) return;
     try {
-      await fetch(`http://localhost:8000/api/v1/hms/doctors/${id}`, { method: 'DELETE' });
+      await fetchWithFallback(`/api/v1/hms/doctors/${id}`, { method: 'DELETE' });
       triggerToast(`Dr. ${name} removed`);
       loadData();
     } catch (err) {
@@ -281,7 +275,7 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
   const handleDeleteDriver = async (id, name) => {
     if (!window.confirm(`Delete driver ${name}?`)) return;
     try {
-      await fetch(`http://localhost:8000/api/v1/hms/drivers/${id}`, { method: 'DELETE' });
+      await fetchWithFallback(`/api/v1/hms/drivers/${id}`, { method: 'DELETE' });
       triggerToast(`Driver ${name} removed`);
       loadData();
     } catch (err) {
@@ -292,7 +286,7 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
   const handleDeleteAmbulance = async (id, reg) => {
     if (!window.confirm(`Remove vehicle ${reg}?`)) return;
     try {
-      await fetch(`http://localhost:8000/api/v1/hms/ambulances/${id}`, { method: 'DELETE' });
+      await fetchWithFallback(`/api/v1/hms/ambulances/${id}`, { method: 'DELETE' });
       triggerToast(`Ambulance ${reg} removed`);
       loadData();
     } catch (err) {
@@ -303,7 +297,7 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
   // Inline Status Update Handlers
   const handleUpdateDoctorStatus = async (doctorId, newStatus, doctorName) => {
     try {
-      const res = await fetch(`http://localhost:8000/api/v1/hms/doctors/${doctorId}`, {
+      const res = await fetchWithFallback(`/api/v1/hms/doctors/${doctorId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus })
@@ -318,7 +312,7 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
 
   const handleUpdateDriverStatus = async (driverId, newStatus, driverName) => {
     try {
-      const res = await fetch(`http://localhost:8000/api/v1/hms/drivers/${driverId}`, {
+      const res = await fetchWithFallback(`/api/v1/hms/drivers/${driverId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus })

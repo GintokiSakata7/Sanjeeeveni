@@ -1,10 +1,10 @@
-const API_BASE_URL = "http://localhost:8000/api/emergency";
+import { fetchWithFallback } from './apiClient';
 
 /**
  * Sends SOS text payload to FastAPI backend
  */
 export async function sendSosRequest(payload) {
-  const response = await fetch(`${API_BASE_URL}/sos`, {
+  const response = await fetchWithFallback("/api/emergency/sos", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
@@ -38,7 +38,7 @@ export function blobToBase64(blob) {
 export async function sendAudioSosRequest(audioBlob, language, latitude, longitude) {
   const base64Audio = await blobToBase64(audioBlob);
 
-  const response = await fetch(`${API_BASE_URL}/audio-sos`, {
+  const response = await fetchWithFallback("/api/emergency/audio-sos", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -56,3 +56,4 @@ export async function sendAudioSosRequest(audioBlob, language, latitude, longitu
 
   return await response.json();
 }
+

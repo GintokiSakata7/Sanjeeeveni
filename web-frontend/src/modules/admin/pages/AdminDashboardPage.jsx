@@ -1,32 +1,39 @@
 import React, { useState, useEffect } from 'react';
 import {
+  ShieldAlert,
   Building2,
   CheckCircle2,
+  XCircle,
   Clock,
-  BedDouble,
   Search,
-  ShieldCheck,
+  Filter,
+  Eye,
   LogOut,
-  ExternalLink,
-  FileText,
+  Sparkles,
+  ShieldCheck,
   MapPin,
+  BedDouble,
+  FileText,
   UserCheck,
-  Check,
+  AlertTriangle,
+  ExternalLink,
+  ChevronRight,
+  TrendingUp,
   X,
   RefreshCw,
-  AlertTriangle,
   Send
 } from 'lucide-react';
+
+import { fetchWithFallback } from '../../../services/apiClient';
 
 export default function AdminDashboardPage({ adminUser, onLogout, onBackToCitizen }) {
   const [stats, setStats] = useState({
     total_hospitals: 0,
-    pending_verifications: 0,
-    approved_hospitals: 0,
-    rejected_hospitals: 0,
+    pending_count: 0,
+    approved_count: 0,
+    rejected_count: 0,
     total_beds: 0,
-    total_icu_beds: 0,
-    total_ambulances: 0
+    total_icu_beds: 0
   });
 
   const [hospitals, setHospitals] = useState([]);
@@ -55,8 +62,8 @@ export default function AdminDashboardPage({ adminUser, onLogout, onBackToCitize
     setIsLoading(true);
     try {
       const [statsRes, hospRes] = await Promise.all([
-        fetch('http://localhost:8000/api/v1/admin/stats'),
-        fetch('http://localhost:8000/api/v1/admin/hospitals')
+        fetchWithFallback('/api/v1/admin/stats'),
+        fetchWithFallback('/api/v1/admin/hospitals')
       ]);
 
       if (statsRes.ok) {
@@ -83,7 +90,7 @@ export default function AdminDashboardPage({ adminUser, onLogout, onBackToCitize
   const handleVerifyAction = async (hospitalId, status, notes = '') => {
     setProcessingId(hospitalId);
     try {
-      const response = await fetch(`http://localhost:8000/api/v1/admin/verify-hospital/${hospitalId}`, {
+      const response = await fetchWithFallback(`/api/v1/admin/verify-hospital/${hospitalId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

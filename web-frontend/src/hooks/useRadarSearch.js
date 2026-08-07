@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { fetchWithFallback } from '../services/apiClient';
 import { supabase } from '../services/supabaseClient';
 
 // Radius steps in meters (matches Pygame config.py)
@@ -146,7 +147,7 @@ export default function useRadarSearch() {
 
     try {
       // Fetch ALL hospitals from the FastAPI backend instead of direct Supabase dummy table
-      const res = await fetch('http://localhost:8000/api/v1/hospital/all');
+      const res = await fetchWithFallback('/api/v1/hospital/all');
       if (!res.ok) throw new Error("Failed to fetch hospitals");
       const data = await res.json();
 
@@ -217,7 +218,7 @@ export default function useRadarSearch() {
     // Send SOS Routing request to the backend for this specific hospital
     try {
       const payload = sosPayloadRef.current || {};
-      const res = await fetch('http://localhost:8000/api/v1/routing/send', {
+      const res = await fetchWithFallback('/api/v1/routing/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -299,7 +300,7 @@ export default function useRadarSearch() {
             const sosId = currentResponses[`${hospitalId}_sos_id`];
             if (sosId) {
               try {
-                const res = await fetch(`http://localhost:8000/api/v1/routing/status/${sosId}`);
+                const res = await fetchWithFallback(`/api/v1/routing/status/${sosId}`);
                 if (res.ok) {
                   const data = await res.json();
                   if (data.status === 'ACCEPTED') {

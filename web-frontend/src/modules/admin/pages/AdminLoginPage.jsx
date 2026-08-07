@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ShieldAlert, Lock, Mail, ArrowLeft, LogIn, Sparkles, Building2, CheckCircle2 } from 'lucide-react';
+import { fetchWithFallback } from '../../../services/apiClient';
 
 export default function AdminLoginPage({ onAdminLoginSuccess, onBackToCitizen }) {
   const [email, setEmail] = useState('admin@sanjeevani.com');
@@ -13,7 +14,7 @@ export default function AdminLoginPage({ onAdminLoginSuccess, onBackToCitizen })
     setError(null);
 
     try {
-      const response = await fetch('http://localhost:8000/api/v1/admin/login', {
+      const response = await fetchWithFallback('/api/v1/admin/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
