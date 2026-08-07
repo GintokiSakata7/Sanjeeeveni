@@ -130,11 +130,14 @@ def respond_to_sos(sos_id: str, payload: SOSResponsePayload, db: Client = Depend
             db.table("sos_timelines").insert(tl).execute()
             
             # Send real-time update to the patient's tracker
-            asyncio.run(manager.broadcast_to_sos(sos_id, {
-                "type": "STATUS_UPDATE",
-                "status": "ACCEPTED",
-                "message": tl["message"]
-            }))
+            try:
+                asyncio.run(manager.broadcast_to_sos(sos_id, {
+                    "type": "STATUS_UPDATE",
+                    "status": "ACCEPTED",
+                    "message": tl["message"]
+                }))
+            except Exception:
+                pass
 
         return {"message": f"SOS request {payload.status}", "sos_id": sos_id}
     except HTTPException:
@@ -189,12 +192,15 @@ def assign_driver(sos_id: str, payload: AssignDriverPayload, db: Client = Depend
         db.table("sos_timelines").insert(tl).execute()
         
         # Send real-time update to the patient's tracker
-        asyncio.run(manager.broadcast_to_sos(sos_id, {
-            "type": "DRIVER_DISPATCHED",
-            "driver_name": driver.get('name'),
-            "ambulance_reg": ambulance.get('vehicle_registration'),
-            "message": tl["message"]
-        }))
+        try:
+            asyncio.run(manager.broadcast_to_sos(sos_id, {
+                "type": "DRIVER_DISPATCHED",
+                "driver_name": driver.get('name'),
+                "ambulance_reg": ambulance.get('vehicle_registration') if ambulance else 'N/A',
+                "message": tl["message"]
+            }))
+        except Exception:
+            pass
         
         return {"message": "Driver assigned successfully", "sos_id": sos_id}
     except HTTPException:
@@ -235,20 +241,26 @@ def assign_doctor(sos_id: str, payload: AssignDoctorPayload, db: Client = Depend
         db.table("sos_timelines").insert(tl).execute()
         
         # Send real-time update to the patient's tracker
-        asyncio.run(manager.broadcast_to_sos(sos_id, {
-            "type": "DOCTOR_ASSIGNED",
-            "doctor_name": doctor.get('name'),
-            "doctor_specialty": doctor.get('specialization', 'Emergency Physician'),
-            "message": tl["message"]
-        }))
+        try:
+            asyncio.run(manager.broadcast_to_sos(sos_id, {
+                "type": "DOCTOR_ASSIGNED",
+                "doctor_name": doctor.get('name'),
+                "doctor_specialty": doctor.get('specialization', 'Emergency Physician'),
+                "message": tl["message"]
+            }))
+        except Exception:
+            pass
         
         # Send push notification via WebSocket to the assigned doctor
-        asyncio.run(manager.broadcast_to_doctor(doctor["id"], {
-            "type": "NEW_CASE_ASSIGNED",
-            "sos_id": sos_id,
-            "patient_name": res.data[0].get("patient_name", "Unknown Patient"),
-            "severity": res.data[0].get("triage_urgency", "CRITICAL")
-        }))
+        try:
+            asyncio.run(manager.broadcast_to_doctor(doctor["id"], {
+                "type": "NEW_CASE_ASSIGNED",
+                "sos_id": sos_id,
+                "patient_name": res.data[0].get("patient_name", "Unknown Patient"),
+                "severity": res.data[0].get("triage_urgency", "CRITICAL")
+            }))
+        except Exception:
+            pass
         
         return {"message": "Doctor assigned successfully", "sos_id": sos_id}
     except HTTPException:
@@ -280,10 +292,13 @@ def driver_accept_sos(sos_id: str, db: Client = Depends(get_supabase)):
         db.table("sos_timelines").insert(tl).execute()
         
         # Send real-time update to the patient's tracker
-        asyncio.run(manager.broadcast_to_sos(sos_id, {
-            "type": "DRIVER_EN_ROUTE",
-            "message": tl["message"]
-        }))
+        try:
+            asyncio.run(manager.broadcast_to_sos(sos_id, {
+                "type": "DRIVER_EN_ROUTE",
+                "message": tl["message"]
+            }))
+        except Exception:
+            pass
         
         return {"message": "Driver accepted mission", "sos_id": sos_id}
     except HTTPException:
