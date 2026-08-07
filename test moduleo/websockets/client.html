@@ -6,6 +6,7 @@
     <title>WebRTC Voice Call Example</title>
     <style>
         body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
+
         button { padding: 10px 20px; font-size: 16px; margin: 10px; cursor: pointer; }
         #status { margin-top: 20px; font-weight: bold; }
     </style>
@@ -18,6 +19,7 @@
         <button id="endCall" disabled>End Call</button>
     </div>
     <div id="status">Connecting to signaling server...</div>
+    <canvas id="visualizer" width="400" height="150" style="display: block; margin: 20px auto; background: #1e293b; border-radius: 8px; border: 1px solid #334155;"></canvas>
     <audio id="remoteAudio" autoplay></audio>
 
     <script>
@@ -35,6 +37,11 @@
         let peerConnection;
         let pendingOffer = null;
         let pendingCandidates = [];
+        
+        // Audio visualizer variables
+        let audioCtx;
+        let analyser;
+        let animationId;
 
         // Using Google's public STUN server for ICE candidate discovery
         const configuration = {
@@ -88,6 +95,7 @@
             // When a remote audio track arrives, play it in the <audio> element
             peerConnection.ontrack = (event) => {
                 remoteAudio.srcObject = event.streams[0];
+                setupVisualizer(event.streams[0]);
             };
 
             // Get local audio stream
@@ -172,6 +180,14 @@
                 localStream.getTracks().forEach(track => track.stop());
             }
             remoteAudio.srcObject = null;
+            
+            // Stop visualizer
+            if (animationId) cancelAnimationFrame(animationId);
+            const canvas = document.getElementById('visualizer');
+            const canvasCtx = canvas.getContext('2d');
+            canvasCtx.fillStyle = '#1e293b';
+            canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+
             startCallBtn.disabled = false;
             startCallBtn.style.display = 'inline-block';
             endCallBtn.disabled = true;
@@ -180,6 +196,47 @@
             pendingCandidates = [];
             statusDiv.textContent = 'Call ended.';
         };
+
+        // --- Audio Visualizer ---
+        function setupVisualizer(stream) {
+            const canvas = document.getElementById('visualizer');
+            const canvasCtx = canvas.getContext('2d');
+
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            
+            const source = audioCtx.createMediaStreamSource(stream);
+            analyser = audioCtx.createAnalyser();
+            source.connect(analyser);
+            
+            analyser.fftSize = 256;
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            
+            function draw() {
+                animationId = requestAnimationFrame(draw);
+                analyser.getByteFrequencyData(dataArray);
+                
+                canvasCtx.fillStyle = '#1e293b';
+                canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                const barWidth = (canvas.width / bufferLength) * 2.5;
+                let barHeight;
+                let x = 0;
+                
+                for (let i = 0; i < bufferLength; i++) {
+                    barHeight = dataArray[i];
+                    
+                    // Create a dynamic color gradient
+                    canvasCtx.fillStyle = `rgb(${barHeight + 50}, 150, 250)`;
+                    canvasCtx.fillRect(x, canvas.height - barHeight / 2, barWidth, barHeight / 2);
+                    
+                    x += barWidth + 1;
+                }
+            }
+            draw();
+        }
     </script>
 </body>
 </html>
