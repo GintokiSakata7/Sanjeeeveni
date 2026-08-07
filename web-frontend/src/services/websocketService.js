@@ -14,17 +14,8 @@ class WebSocketService {
     
     this.sosId = sosId;
     
-    // Determine WS protocol based on current location protocol
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    
-    // Use the backend URL from config, but change protocol to ws/wss
-    // Fallback to localhost if not configured
-    let backendUrl = 'http://localhost:8000';
-    if (import.meta.env.VITE_BACKEND_URL) {
-      backendUrl = import.meta.env.VITE_BACKEND_URL;
-    }
-    
-    const wsUrl = backendUrl.replace(/^https?:/, protocol) + `/api/v1/ws/sos/${sosId}`;
+    // Force deployed server for WebSockets per user request
+    const wsUrl = `wss://sanjeeeveni.onrender.com/api/v1/ws/sos/${sosId}`;
     
     this.ws = new WebSocket(wsUrl);
 

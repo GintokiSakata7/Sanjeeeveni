@@ -30,12 +30,8 @@ class WebSocketService {
     _isConnecting = true;
     _disconnectInternal();
 
-    // In a real app, you'd want to get the actual working backend URL from ApiService
-    // For this prototype, we'll try to guess based on platform
-    String wsUrl = 'ws://127.0.0.1:8000/api/v1/ws/doctor/$doctorId';
-    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
-      wsUrl = 'ws://10.0.2.2:8000/api/v1/ws/doctor/$doctorId';
-    }
+    // Use deployed server for WebSockets per user request
+    String wsUrl = 'wss://sanjeeeveni.onrender.com/api/v1/ws/doctor/$doctorId';
 
     try {
       _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
