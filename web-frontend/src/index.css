@@ -4116,8 +4116,8 @@ body {
   100% { box-shadow: 0 0 0 0 rgba(217, 119, 6, 0); transform: scale(1); }
 }
 
-/* Individual Hospital Response Card */
-.hospital-response-card {
+/* Individual Hospital & Helper Response Card */
+.hospital-response-card, .helper-response-card {
   background: #FFFFFF;
   border: 1px solid var(--border-light);
   border-radius: 12px;
@@ -4128,7 +4128,7 @@ body {
   animation: hrcSlideIn 0.4s ease-out both;
 }
 
-.hospital-response-card::before {
+.hospital-response-card::before, .helper-response-card::before {
   content: "";
   position: absolute;
   top: 0;
@@ -4138,16 +4138,16 @@ body {
   border-radius: 4px 0 0 4px;
 }
 
-.hospital-response-card.pending::before { background: var(--amber-warning); }
-.hospital-response-card.accepted::before { background: var(--green-success); }
-.hospital-response-card.rejected::before { background: var(--red-primary); }
+.hospital-response-card.pending::before, .helper-response-card.pending::before { background: var(--amber-warning); }
+.hospital-response-card.accepted::before, .helper-response-card.accepted::before { background: var(--green-success); }
+.hospital-response-card.rejected::before, .helper-response-card.rejected::before { background: var(--red-primary); }
 
-.hospital-response-card.winner {
+.hospital-response-card.winner, .helper-response-card.winner {
   border-color: var(--green-success);
   background: var(--green-light);
 }
 
-.hospital-response-card:hover {
+.hospital-response-card:hover, .helper-response-card:hover {
   border-color: var(--border-hover);
   box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
 }
@@ -4211,6 +4211,7 @@ body {
   border: 1px solid rgba(220, 38, 38, 0.2);
 }
 
+
 /* Card Details */
 .hrc-details {
   display: flex;
@@ -4243,8 +4244,8 @@ body {
   padding-left: 30px;
 }
 
-.btn-hospital-accept,
-.btn-hospital-reject {
+.btn-hospital-accept, .btn-helper-accept,
+.btn-hospital-reject, .btn-helper-reject {
   font-family: 'Outfit', sans-serif;
   font-size: 12px;
   font-weight: 700;
@@ -4256,26 +4257,26 @@ body {
   letter-spacing: 0.5px;
 }
 
-.btn-hospital-accept {
+.btn-hospital-accept, .btn-helper-accept {
   background: var(--green-light);
   color: var(--green-success);
   border: 1px solid rgba(5, 150, 105, 0.3);
 }
 
-.btn-hospital-accept:hover {
+.btn-hospital-accept:hover, .btn-helper-accept:hover {
   background: var(--green-success);
   color: #FFFFFF;
   box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3);
   transform: translateY(-1px);
 }
 
-.btn-hospital-reject {
+.btn-hospital-reject, .btn-helper-reject {
   background: var(--red-light);
   color: var(--red-primary);
   border: 1px solid rgba(220, 38, 38, 0.3);
 }
 
-.btn-hospital-reject:hover {
+.btn-hospital-reject:hover, .btn-helper-reject:hover {
   background: var(--red-primary);
   color: #FFFFFF;
   box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
@@ -4344,3 +4345,75 @@ body {
 }
 
 
+
+
+.radar-and-hospitals-section { display: flex; gap: 20px; align-items: flex-start; justify-content: center; width: 100%; }
+
+.hospital-panel-wrapper, .helper-panel-wrapper { background: var(--surface-light); border-radius: 20px; padding: 24px; box-shadow: var(--shadow-sm); display: flex; flex-direction: column; gap: 16px; max-width: 320px; border: 1px solid var(--border-light); }
+
+.helper-cards-scroll { display: flex; flex-direction: column; gap: 12px; overflow-y: auto; max-height: 400px; padding-right: 8px; }
+
+/* Toggle Switch Styles */
+.toggle-switch-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 15px 0;
+}
+
+.toggle-switch-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-sub);
+}
+
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 26px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #cbd5e1;
+  transition: .3s;
+  border-radius: 26px;
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 20px;
+  width: 20px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: .3s;
+  border-radius: 50%;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+input:checked + .toggle-slider {
+  background-color: var(--blue-cyan);
+}
+
+input:focus + .toggle-slider {
+  box-shadow: 0 0 1px var(--blue-cyan);
+}
+
+input:checked + .toggle-slider:before {
+  transform: translateX(24px);
+}

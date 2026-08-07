@@ -25,6 +25,12 @@ const RadarCanvas = ({
   onSweepDiscover,
   getUndiscoveredInRadius,
   finalHospitalId = null,
+  allHelpers = [],
+  discoveredHelperIds = [],
+  helperResponses = {},
+  onSweepDiscoverHelper,
+  getUndiscoveredHelpersInRadius,
+  finalHelperId = null,
 }) => {
   const canvasRef = useRef(null);
   const sweepAngleRef = useRef(0);
@@ -33,11 +39,19 @@ const RadarCanvas = ({
 
   // Convert discoveredIds to a Set for O(1) lookup
   const discoveredSetRef = useRef(new Set());
+  const discoveredHelperSetRef = useRef(new Set());
+  
   useEffect(() => {
     discoveredSetRef.current = new Set(
       Array.isArray(discoveredIds) ? discoveredIds : []
     );
   }, [discoveredIds]);
+
+  useEffect(() => {
+    discoveredHelperSetRef.current = new Set(
+      Array.isArray(discoveredHelperIds) ? discoveredHelperIds : []
+    );
+  }, [discoveredHelperIds]);
 
   // Store latest props in refs for the animation loop
   const propsRef = useRef({});
@@ -48,7 +62,10 @@ const RadarCanvas = ({
       currentRadius,
       maxRadius,
       isScanning,
-      finalHospitalId
+      finalHospitalId,
+      allHelpers,
+      helperResponses,
+      finalHelperId
     };
   });
 
@@ -57,6 +74,12 @@ const RadarCanvas = ({
 
   const getUndiscoveredRef = useRef(getUndiscoveredInRadius);
   useEffect(() => { getUndiscoveredRef.current = getUndiscoveredInRadius; }, [getUndiscoveredInRadius]);
+
+  const onSweepDiscoverHelperRef = useRef(onSweepDiscoverHelper);
+  useEffect(() => { onSweepDiscoverHelperRef.current = onSweepDiscoverHelper; }, [onSweepDiscoverHelper]);
+
+  const getUndiscoveredHelperRef = useRef(getUndiscoveredHelpersInRadius);
+  useEffect(() => { getUndiscoveredHelperRef.current = getUndiscoveredHelpersInRadius; }, [getUndiscoveredHelpersInRadius]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -204,6 +227,57 @@ const RadarCanvas = ({
         ctx.shadowBlur = 0;
       });
 
+      // --- Draw Helpers ---
+      const helpers = props.allHelpers || [];
+      const hResp = props.helperResponses || {};
+      const discoveredH = discoveredHelperSetRef.current;
+
+      helpers.forEach(h => {
+        if (!discoveredH.has(h.id)) return;
+
+        const distRatio = Math.min(h.distance / maxR, 1.0);
+        const blipRadius = distRatio * radius;
+        const bearingRad = (h.bearing * Math.PI) / 180;
+        const tx = cx + blipRadius * Math.sin(bearingRad);
+        const ty = cy - blipRadius * Math.cos(bearingRad);
+
+        const status = hResp[h.id] || 'PENDING';
+        let blipColor, glowColor;
+        
+        if (h.id === props.finalHelperId) {
+          blipColor = 'rgba(0, 191, 255, 1)';
+          glowColor = 'rgba(0, 191, 255, 0.8)'; // Bright Cyan
+        } else if (status === 'ACCEPTED') {
+          blipColor = 'rgba(0, 191, 255, 0.9)';
+          glowColor = 'rgba(0, 191, 255, 0.5)';
+        } else if (status === 'REJECTED') {
+          blipColor = 'rgba(255, 60, 80, 0.7)';
+          glowColor = 'rgba(255, 60, 80, 0.3)';
+        } else {
+          let angleDiff = sweepAngle - h.bearing;
+          if (angleDiff < 0) angleDiff += 360;
+          let opacity = 0.25;
+          if (angleDiff >= 0 && angleDiff < 60) {
+            opacity = 1 - (angleDiff / 60);
+          }
+          blipColor = `rgba(0, 229, 255, ${Math.max(opacity, 0.25)})`; // Cyan for pending helpers
+          glowColor = `rgba(0, 229, 255, ${Math.max(opacity * 0.5, 0.1)})`;
+        }
+
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = glowColor;
+        ctx.beginPath();
+        ctx.arc(tx, ty, 5, 0, Math.PI * 2);
+        ctx.fillStyle = blipColor;
+        ctx.fill();
+        
+        ctx.beginPath();
+        ctx.arc(tx, ty, 2, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      });
+
       // Sweep beam discovery check
       if (props.isScanning && getUndiscoveredRef.current && onSweepDiscoverRef.current) {
         const undiscovered = getUndiscoveredRef.current();
@@ -222,6 +296,22 @@ const RadarCanvas = ({
             // (shouldn't happen since we only discover once, but safety)
           }
         });
+      }
+
+      if (props.isScanning && getUndiscoveredHelperRef.current && onSweepDiscoverHelperRef.current) {
+        const undiscovered = getUndiscoveredHelperRef.current();
+        if (undiscovered) {
+          undiscovered.forEach(h => {
+            let diff = sweepAngle - h.bearing;
+            if (diff < 0) diff += 360;
+            if (diff >= 0 && diff < 5) {
+              if (!lastDiscoverCheckRef.current['helper_' + h.id]) {
+                lastDiscoverCheckRef.current['helper_' + h.id] = true;
+                onSweepDiscoverHelperRef.current(h.id);
+              }
+            }
+          });
+        }
       }
 
       // Sweep beam line

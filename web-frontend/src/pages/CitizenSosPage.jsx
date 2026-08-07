@@ -8,6 +8,8 @@ import { sendSosRequest, sendAudioSosRequest } from '../services/api';
 import RadarCanvas from '../components/RadarCanvas';
 import HospitalResponsePanel from '../components/HospitalResponsePanel';
 import useRadarSearch from '../hooks/useRadarSearch';
+import useHelperSearch from '../hooks/useHelperSearch';
+import HelperResponsePanel from '../components/HelperResponsePanel';
 import { API_BASE_URL } from '../config';
 
 export default function CitizenSosPage({
@@ -37,8 +39,10 @@ export default function CitizenSosPage({
   const audioChunksRef = useRef([]);
   const accumulatedRef = useRef("");
 
-  // Full radar search hook
+  // Full radar search hooks
   const radar = useRadarSearch();
+  const helperSearch = useHelperSearch();
+  const [showRadarSection, setShowRadarSection] = useState(true);
 
   // Initialize GPS Coordinates
   useEffect(() => {
@@ -197,13 +201,16 @@ export default function CitizenSosPage({
     setLoading(true);
     setTriageResult(null);
 
-    // Start the full radar search (fetches ALL hospitals, begins progressive scan)
+    // Start both searches
     radar.startSearch(gps.lat, gps.lng, {
       text: activeText,
       latitude: gps.lat,
       longitude: gps.lng,
       urgency: 'HIGH' // default until AI says otherwise
     });
+    
+    // Start helper search in parallel
+    helperSearch.startSearch(gps.lat, gps.lng);
 
     try {
       let data;
@@ -261,6 +268,7 @@ export default function CitizenSosPage({
 
   // Prepare discovered IDs for radar canvas
   const discoveredIds = radar.discoveredHospitals.map(h => h.id);
+  const discoveredHelperIds = helperSearch.discoveredHelpers.map(h => h.id);
 
   return (
     <div className="dashboard-root">
@@ -298,21 +306,6 @@ export default function CitizenSosPage({
             🚨 TRANSMIT SOS SIGNAL
           </button>
 
-          {/* Hospital Response Panel — Left side with YES/NO cards */}
-          <HospitalResponsePanel
-            discoveredHospitals={radar.discoveredHospitals}
-            responses={radar.responses}
-            onAccept={radar.acceptHospital}
-            onReject={radar.rejectHospital}
-            isSearchActive={radar.isSearchActive}
-            finalHospital={radar.finalHospital}
-            currentRadius={radar.currentRadius}
-            totalCount={radar.totalCount}
-            pendingCount={radar.pendingCount}
-            acceptedCount={radar.acceptedCount}
-            rejectedCount={radar.rejectedCount}
-            notifications={radar.notifications}
-          />
         </div>
 
         <div className="orchestrator-panel">
@@ -324,20 +317,78 @@ export default function CitizenSosPage({
             speakFirstAid={speakFirstAid}
           />
           
-          {/* Radar Canvas — Bottom right */}
-          <div className="radar-canvas-wrapper">
-            <RadarCanvas
-              allHospitals={radar.allHospitals}
-              discoveredIds={discoveredIds}
-              responses={radar.responses}
-              currentRadius={radar.currentRadius}
-              maxRadius={radar.RADIUS_STEPS[radar.RADIUS_STEPS.length - 1]}
-              isScanning={radar.isSearchActive}
-              onSweepDiscover={radar.discoverHospital}
-              getUndiscoveredInRadius={radar.getUndiscoveredInRadius}
-              finalHospitalId={radar.finalHospital ? radar.finalHospital.id : null}
-            />
+          <div className="toggle-switch-wrapper">
+            <span className="toggle-switch-label">Live Radar & Helpers</span>
+            <label className="toggle-switch">
+              <input 
+                type="checkbox" 
+                checked={showRadarSection} 
+                onChange={() => setShowRadarSection(!showRadarSection)} 
+              />
+              <span className="toggle-slider"></span>
+            </label>
           </div>
+
+          {showRadarSection && (
+            <div className="radar-and-hospitals-section">
+              {/* Hospital Response Panel — Left beside the radar */}
+              <div className="hospital-panel-wrapper">
+                <HospitalResponsePanel
+                  discoveredHospitals={radar.discoveredHospitals}
+                  responses={radar.responses}
+                  onAccept={radar.acceptHospital}
+                  onReject={radar.rejectHospital}
+                  isSearchActive={radar.isSearchActive}
+                  finalHospital={radar.finalHospital}
+                  currentRadius={radar.currentRadius}
+                  totalCount={radar.totalCount}
+                  pendingCount={radar.pendingCount}
+                  acceptedCount={radar.acceptedCount}
+                  rejectedCount={radar.rejectedCount}
+                  notifications={radar.notifications}
+                />
+              </div>
+
+              {/* Radar Canvas — Middle */}
+              <div className="radar-canvas-wrapper">
+                <RadarCanvas
+                  allHospitals={radar.allHospitals}
+                  discoveredIds={discoveredIds}
+                  responses={radar.responses}
+                  currentRadius={Math.max(radar.currentRadius || 0, helperSearch.currentRadius || 0)}
+                  maxRadius={radar.RADIUS_STEPS[radar.RADIUS_STEPS.length - 1]}
+                  isScanning={radar.isSearchActive || helperSearch.isSearchActive}
+                  onSweepDiscover={radar.discoverHospital}
+                  getUndiscoveredInRadius={radar.getUndiscoveredInRadius}
+                  finalHospitalId={radar.finalHospital ? radar.finalHospital.id : null}
+                  allHelpers={helperSearch.allHelpers}
+                  discoveredHelperIds={discoveredHelperIds}
+                  helperResponses={helperSearch.responses}
+                  onSweepDiscoverHelper={helperSearch.discoverHelper}
+                  getUndiscoveredHelpersInRadius={helperSearch.getUndiscoveredInRadius}
+                  finalHelperId={helperSearch.finalHelper ? helperSearch.finalHelper.id : null}
+                />
+              </div>
+
+              {/* Helper Response Panel — Right beside the radar */}
+              <div className="helper-panel-wrapper">
+                <HelperResponsePanel
+                  discoveredHelpers={helperSearch.discoveredHelpers}
+                  responses={helperSearch.responses}
+                  onAccept={helperSearch.acceptHelper}
+                  onReject={helperSearch.rejectHelper}
+                  isSearchActive={helperSearch.isSearchActive}
+                  finalHelper={helperSearch.finalHelper}
+                  currentRadius={helperSearch.currentRadius}
+                  totalCount={helperSearch.totalCount}
+                  pendingCount={helperSearch.pendingCount}
+                  acceptedCount={helperSearch.acceptedCount}
+                  rejectedCount={helperSearch.rejectedCount}
+                  notifications={helperSearch.notifications}
+                />
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
