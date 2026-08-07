@@ -14,6 +14,7 @@
     <h1>Voice Call App</h1>
     <div>
         <button id="startCall" disabled>Start Call</button>
+        <button id="acceptCall" style="display: none; background-color: #f59e0b; color: white;">Accept Call</button>
         <button id="endCall" disabled>End Call</button>
     </div>
     <div id="status">Connecting to signaling server...</div>
@@ -23,13 +24,17 @@
         // Connect specifically to the main deployed server
         const wsUrl = 'wss://sanjeeeveni.onrender.com/api/v1/ws/test';
         const ws = new WebSocket(wsUrl);
+        
         const startCallBtn = document.getElementById('startCall');
+        const acceptCallBtn = document.getElementById('acceptCall');
         const endCallBtn = document.getElementById('endCall');
         const remoteAudio = document.getElementById('remoteAudio');
         const statusDiv = document.getElementById('status');
 
         let localStream;
         let peerConnection;
+        let pendingOffer = null;
+        let pendingCandidates = [];
 
         // Using Google's public STUN server for ICE candidate discovery
         const configuration = {
@@ -46,6 +51,7 @@
             statusDiv.textContent = 'Disconnected from signaling server.';
             startCallBtn.disabled = true;
             endCallBtn.disabled = true;
+            acceptCallBtn.style.display = 'none';
         };
 
         // Handle messages from the signaling server
@@ -54,8 +60,10 @@
             console.log('Received message:', message.type);
 
             if (message.type === 'offer') {
-                statusDiv.textContent = 'Incoming call...';
-                await handleOffer(message.offer);
+                statusDiv.textContent = 'Incoming call... Click Accept!';
+                pendingOffer = message.offer;
+                startCallBtn.style.display = 'none';
+                acceptCallBtn.style.display = 'inline-block';
             } else if (message.type === 'answer') {
                 statusDiv.textContent = 'Call answered.';
                 await handleAnswer(message.answer);
@@ -112,10 +120,20 @@
             }));
         };
 
-        // Callee receives an offer
-        async function handleOffer(offer) {
+        // Callee clicks "Accept Call"
+        acceptCallBtn.onclick = async () => {
+            acceptCallBtn.style.display = 'none';
+            endCallBtn.disabled = false;
+            statusDiv.textContent = 'Connecting...';
+            
             await createPeerConnection();
-            await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(pendingOffer));
+            
+            // Process any ICE candidates that arrived before we accepted
+            for (const c of pendingCandidates) {
+                await peerConnection.addIceCandidate(new RTCIceCandidate(c));
+            }
+            pendingCandidates = [];
             
             // Create an answer and send it back
             const answer = await peerConnection.createAnswer();
@@ -126,10 +144,8 @@
                 answer: answer
             }));
             
-            startCallBtn.disabled = true;
-            endCallBtn.disabled = false;
             statusDiv.textContent = 'In call';
-        }
+        };
 
         // Caller receives the answer
         async function handleAnswer(answer) {
@@ -138,8 +154,11 @@
 
         // Both peers exchange ICE candidates
         async function handleCandidate(candidate) {
-            if (peerConnection) {
+            if (peerConnection && peerConnection.remoteDescription) {
                 await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+            } else {
+                // Queue candidate if remote description isn't set yet
+                pendingCandidates.push(candidate);
             }
         }
 
@@ -154,7 +173,11 @@
             }
             remoteAudio.srcObject = null;
             startCallBtn.disabled = false;
+            startCallBtn.style.display = 'inline-block';
             endCallBtn.disabled = true;
+            acceptCallBtn.style.display = 'none';
+            pendingOffer = null;
+            pendingCandidates = [];
             statusDiv.textContent = 'Call ended.';
         };
     </script>
