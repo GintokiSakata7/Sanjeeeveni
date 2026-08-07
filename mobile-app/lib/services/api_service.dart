@@ -62,7 +62,7 @@ class ApiService {
           }
         }
         throw ApiException(errorMsg, response.statusCode);
-      } on ApiException catch (e) {
+      } on ApiException {
         // HTTP response received (e.g. 401 Unauthorized), so target URL is valid!
         _workingBaseUrl = base;
         rethrow;
@@ -82,6 +82,7 @@ class ApiService {
 
     throw ApiException(
       'Cannot connect to backend server at any host (127.0.0.1 / 10.0.2.2).\n'
+      '${lastException != null ? 'Last error: $lastException\n' : ''}'
       'Ensure uvicorn is running on port 8000 and USB debugging / Wi-Fi is active.',
       0,
     );
