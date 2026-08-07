@@ -9,6 +9,15 @@ const IncomingCallModal = ({ callInfo, onAccept, onReject, isActive, onEnd }) =>
 
   useEffect(() => {
     if (isActive) {
+      if (rtcService.remoteStream && remoteAudioRef.current) {
+        remoteAudioRef.current.srcObject = rtcService.remoteStream;
+      }
+      rtcService.onRemoteStreamAdd = (stream) => {
+        if (remoteAudioRef.current) {
+          remoteAudioRef.current.srcObject = stream;
+        }
+      };
+
       const timer = setInterval(() => setDuration(d => d + 1), 1000);
       return () => clearInterval(timer);
     }
@@ -16,11 +25,6 @@ const IncomingCallModal = ({ callInfo, onAccept, onReject, isActive, onEnd }) =>
 
   const handleAccept = async () => {
     try {
-      rtcService.onRemoteStreamAdd = (stream) => {
-        if (remoteAudioRef.current) {
-          remoteAudioRef.current.srcObject = stream;
-        }
-      };
       await rtcService.initialize(callInfo.doctor_id, callInfo.sdp);
       onAccept();
     } catch (e) {
