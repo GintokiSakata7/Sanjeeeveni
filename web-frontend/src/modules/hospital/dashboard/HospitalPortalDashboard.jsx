@@ -90,7 +90,7 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
     return () => clearInterval(intervalId);
   }, [hospitalId]);
 
-  const handleRespondToSOS = async (sosId, status, driverId = null, ambulanceId = null) => {
+  const handleRespondToSOS = async (sosId, status, driverId = null, doctorId = null) => {
     try {
       const payload = { status };
       const res = await fetchWithFallback(`/api/v1/routing/respond/${sosId}`, {
@@ -99,11 +99,20 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
         body: JSON.stringify(payload)
       });
       if (res.ok) {
-        if (status === 'ACCEPTED' && driverId && ambulanceId) {
+        if (status === 'ACCEPTED' && driverId) {
+           // Assign driver (driver is already allocated to an ambulance)
            await fetchWithFallback(`/api/v1/routing/assign-driver/${sosId}`, {
              method: 'POST',
              headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify({ driver_id: driverId, ambulance_id: ambulanceId })
+             body: JSON.stringify({ driver_id: driverId })
+           });
+        }
+        if (status === 'ACCEPTED' && doctorId) {
+           // Assign doctor to the case
+           await fetchWithFallback(`/api/v1/routing/assign-doctor/${sosId}`, {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({ doctor_id: doctorId })
            });
         }
         triggerToast(`SOS Emergency ${status}`, status === 'ACCEPTED' ? 'success' : 'error');
@@ -1117,9 +1126,9 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
       {/* SOS EMERGENCY ALERT MODAL */}
       <IncomingSOSAlert
         sosRequest={incomingSOS}
-        availableDrivers={drivers.filter(d => d.status === 'Available' || d.status === 'Available (Standby)')}
-        availableAmbulances={ambulances.filter(a => a.status === 'Available' || a.status === 'Available (Standby)')}
-        onAccept={(id, driverId, ambId) => handleRespondToSOS(id, 'ACCEPTED', driverId, ambId)}
+        availableDrivers={drivers}
+        availableDoctors={doctors}
+        onAccept={(id, driverId, doctorId) => handleRespondToSOS(id, 'ACCEPTED', driverId, doctorId)}
         onReject={(id) => handleRespondToSOS(id, 'REJECTED')}
       />
     </div>

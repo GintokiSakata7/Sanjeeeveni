@@ -28,7 +28,7 @@ class SOSResponsePayload(BaseModel):
 
 class AssignDriverPayload(BaseModel):
     driver_id: str
-    ambulance_id: str
+    ambulance_id: Optional[str] = None  # Optional — auto-resolved from driver's assigned ambulance
 
 class AssignDoctorPayload(BaseModel):
     doctor_id: str
@@ -142,28 +142,37 @@ def assign_driver(sos_id: str, payload: AssignDriverPayload, db: Client = Depend
 
         d_res = db.table("drivers").select("*").eq("id", payload.driver_id).execute()
         driver = d_res.data[0] if d_res.data else None
+        if not driver:
+            raise HTTPException(status_code=404, detail="Driver not found")
 
-        a_res = db.table("ambulances").select("*").eq("id", payload.ambulance_id).execute()
-        ambulance = a_res.data[0] if a_res.data else None
-
-        if not driver or not ambulance:
-            raise HTTPException(status_code=404, detail="Driver or Ambulance not found")
+        # Auto-resolve ambulance: check if an ambulance is assigned to this driver
+        ambulance = None
+        if payload.ambulance_id:
+            a_res = db.table("ambulances").select("*").eq("id", payload.ambulance_id).execute()
+            ambulance = a_res.data[0] if a_res.data else None
+        else:
+            # Look up ambulance assigned to this driver
+            a_res = db.table("ambulances").select("*").eq("assigned_driver_id", payload.driver_id).execute()
+            ambulance = a_res.data[0] if a_res.data else None
 
         update_data = {
             "assigned_driver_id": driver["id"],
             "assigned_driver_name": driver.get("name", "Unknown"),
-            "assigned_ambulance_id": ambulance["id"],
-            "assigned_ambulance_reg": ambulance.get("vehicle_registration", "Unknown"),
             "driver_status": "ASSIGNED",
             "updated_at": datetime.utcnow().isoformat()
         }
+        if ambulance:
+            update_data["assigned_ambulance_id"] = ambulance["id"]
+            update_data["assigned_ambulance_reg"] = ambulance.get("vehicle_registration", "Unknown")
+
         db.table("sos_requests").update(update_data).eq("id", sos_id).execute()
 
+        amb_info = f" with Ambulance {ambulance.get('vehicle_registration')}" if ambulance else ""
         tl = {
             "sos_id": sos_id,
             "event_type": "DRIVER_ASSIGNED",
             "actor_role": "hospital",
-            "message": f"Ambulance {ambulance.get('vehicle_registration')} with Driver {driver.get('name')} assigned.",
+            "message": f"Driver {driver.get('name')} assigned{amb_info}.",
             "created_at": datetime.utcnow().isoformat()
         }
         db.table("sos_timelines").insert(tl).execute()

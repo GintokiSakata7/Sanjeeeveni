@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { AlertTriangle, MapPin, Activity, Stethoscope, User, Image as ImageIcon, Check, X } from 'lucide-react';
+import { AlertTriangle, MapPin, Activity, Stethoscope, User, Image as ImageIcon, Check, X, Car } from 'lucide-react';
 
-export default function IncomingSOSAlert({ sosRequest, availableDrivers, availableAmbulances, onAccept, onReject }) {
+export default function IncomingSOSAlert({ sosRequest, availableDrivers, availableDoctors, onAccept, onReject }) {
   const [selectedDriverId, setSelectedDriverId] = useState('');
-  const [selectedAmbulanceId, setSelectedAmbulanceId] = useState('');
+  const [selectedDoctorId, setSelectedDoctorId] = useState('');
 
   if (!sosRequest) return null;
 
@@ -58,10 +58,11 @@ export default function IncomingSOSAlert({ sosRequest, availableDrivers, availab
             )}
           </div>
           
+          {/* ASSIGN DRIVER */}
           <div className="form-field" style={{ marginBottom: '15px' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#94a3b8' }}>
-              <User size={16} color="#2dd4bf" />
-              Assign Driver (Primary)
+              <Car size={16} color="#2dd4bf" />
+              Assign Driver (with Ambulance)
             </label>
             <select
               value={selectedDriverId}
@@ -71,26 +72,27 @@ export default function IncomingSOSAlert({ sosRequest, availableDrivers, availab
               <option value="">-- Select available driver --</option>
               {availableDrivers.map(drv => (
                 <option key={drv.id} value={drv.id}>
-                  {drv.name}
+                  🚑 {drv.name} ({drv.contact_number})
                 </option>
               ))}
             </select>
           </div>
 
+          {/* ASSIGN DOCTOR */}
           <div className="form-field">
             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#94a3b8' }}>
               <Stethoscope size={16} color="#fb7185" />
-              Assign Ambulance
+              Assign Doctor
             </label>
             <select
-              value={selectedAmbulanceId}
-              onChange={(e) => setSelectedAmbulanceId(e.target.value)}
+              value={selectedDoctorId}
+              onChange={(e) => setSelectedDoctorId(e.target.value)}
               style={{ width: '100%', backgroundColor: '#1a2332', color: 'white', padding: '10px', borderRadius: '8px', border: '1px solid #334155' }}
             >
-              <option value="">-- Select available ambulance --</option>
-              {availableAmbulances.map(amb => (
-                <option key={amb.id} value={amb.id}>
-                  {amb.vehicle_registration} ({amb.vehicle_type})
+              <option value="">-- Select doctor --</option>
+              {availableDoctors.map(doc => (
+                <option key={doc.id} value={doc.id}>
+                  👨‍⚕️ Dr. {doc.name} — {doc.specialization} ({doc.status})
                 </option>
               ))}
             </select>
@@ -106,14 +108,14 @@ export default function IncomingSOSAlert({ sosRequest, availableDrivers, availab
             <X size={18} /> REJECT
           </button>
           <button
-            onClick={() => onAccept(sosRequest.id, selectedDriverId, selectedAmbulanceId)}
-            disabled={!selectedDriverId || !selectedAmbulanceId}
+            onClick={() => onAccept(sosRequest.id, selectedDriverId, selectedDoctorId)}
+            disabled={!selectedDriverId || !selectedDoctorId}
             className="btn-add-primary"
             style={{ 
               display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center', 
               backgroundColor: '#ef4444', 
-              opacity: (!selectedDriverId || !selectedAmbulanceId) ? 0.5 : 1,
-              cursor: (!selectedDriverId || !selectedAmbulanceId) ? 'not-allowed' : 'pointer'
+              opacity: (!selectedDriverId || !selectedDoctorId) ? 0.5 : 1,
+              cursor: (!selectedDriverId || !selectedDoctorId) ? 'not-allowed' : 'pointer'
             }}
           >
             <Check size={18} /> ACCEPT & DISPATCH

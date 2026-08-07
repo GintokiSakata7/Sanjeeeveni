@@ -109,21 +109,14 @@ async def process_triage(
         lang_code = requested_lang
         lang_name = _code_to_name(requested_lang)
 
-    # 1. Primary: Groq Llama 3.3 70B (Fast & High Quota)
+    # 1. Primary: Groq Llama 3 8B (Fast & High Quota)
     if GROQ_API_KEY:
         try:
             return await _call_groq_triage(user_text, lang_name, lang_code, sub_intent)
         except Exception as e:
-            logger.warning(f"[Triage] Groq failed: {e}. Trying Gemini...")
+            logger.warning(f"[Triage] Groq failed: {e}. Falling back to rule engine...")
 
-    # 2. Fallback: Gemini
-    if GEMINI_API_KEY:
-        try:
-            return await _call_gemini_triage(user_text, lang_name, lang_code, sub_intent)
-        except Exception as e:
-            logger.warning(f"[Triage] Gemini failed: {e}. Using rule engine...")
-
-    # 3. Last Resort: Rule Engine
+    # 2. Last Resort: Rule Engine (Gemini fallback disabled per user request)
     return _rule_based_triage(user_text, lang_code, lang_name)
 
 
@@ -137,7 +130,7 @@ async def _call_groq_triage(
         "Content-Type": "application/json"
     }
     payload = {
-        "model": "llama3-8b-8192",
+        "model": "llama-3.1-8b-instant",
         "messages": [
             {"role": "system", "content": "You are an expert medical dispatcher AI. Return strictly valid JSON."},
             {"role": "user", "content": prompt}
