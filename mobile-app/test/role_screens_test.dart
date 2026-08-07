@@ -40,8 +40,8 @@ void main() {
       expect(find.text('Doctor'), findsOneWidget);
       expect(find.text('Driver'), findsOneWidget);
       expect(find.text('Helper'), findsOneWidget);
-      expect(find.text('ID OR REGISTERED MOBILE NUMBER'), findsOneWidget);
-      expect(find.text('PASSWORD'), findsOneWidget);
+      expect(find.text('REGISTERED MOBILE NUMBER'), findsOneWidget);
+      expect(find.text('SECURITY PASSWORD'), findsOneWidget);
       expect(find.text('Register Here'), findsOneWidget);
     });
 

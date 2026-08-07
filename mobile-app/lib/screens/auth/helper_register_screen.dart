@@ -12,11 +12,16 @@ class HelperRegisterScreen extends StatefulWidget {
 }
 
 class _HelperRegisterScreenState extends State<HelperRegisterScreen> {
-  final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _phoneController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _locationController = TextEditingController();
-  final TextEditingController _certIdController = TextEditingController();
+  final TextEditingController _nameController =
+      TextEditingController(text: 'Anjali Devi');
+  final TextEditingController _phoneController =
+      TextEditingController(text: '+91 98490 12345');
+  final TextEditingController _passwordController =
+      TextEditingController(text: 'Helper123!');
+  final TextEditingController _locationController =
+      TextEditingController(text: 'Banjara Hills Sector 4, Hyderabad');
+  final TextEditingController _certIdController =
+      TextEditingController(text: 'ASHA-TS-GOV-2024-8819');
 
   String _selectedRole = 'ASHA Community Health Worker';
   bool _liveLocationAccess = true;
@@ -25,8 +30,9 @@ class _HelperRegisterScreenState extends State<HelperRegisterScreen> {
   bool _traumaSkill = true;
   bool _chokingSkill = true;
   bool _isUploadingCert = false;
-  String _uploadedFileName = '';
+  String _uploadedFileName = 'verified_paramedic_firstaid_cert.pdf';
   bool _isLoading = false;
+  bool _obscurePassword = true;
 
   final List<String> _helperRoles = [
     'ASHA Community Health Worker',
@@ -133,7 +139,7 @@ class _HelperRegisterScreenState extends State<HelperRegisterScreen> {
       prefs.setHelperLiveLocation(true);
       await prefs.login(
         role: 'helper',
-        userId: response['user_id'] ?? '',
+        userId: response['user_id'] ?? phone,
         userName: response['user_name'] ?? name,
         token: response['token'] ?? '',
         contactNumber: response['contact_number'] ?? phone,
@@ -160,6 +166,8 @@ class _HelperRegisterScreenState extends State<HelperRegisterScreen> {
           SnackBar(
             content: Text(e.message),
             backgroundColor: const Color(0xFFDC2626),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 4),
           ),
         );
       }
@@ -167,9 +175,11 @@ class _HelperRegisterScreenState extends State<HelperRegisterScreen> {
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Connection failed. Is the backend server running?'),
-            backgroundColor: Color(0xFFDC2626),
+          SnackBar(
+            content: Text('Cannot connect to database backend: $e'),
+            backgroundColor: const Color(0xFFDC2626),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 4),
           ),
         );
       }
@@ -316,6 +326,40 @@ class _HelperRegisterScreenState extends State<HelperRegisterScreen> {
                   labelText: 'Mobile Number',
                   labelStyle: const TextStyle(color: Color(0xFF94A3B8)),
                   prefixIcon: const Icon(Icons.phone, color: Color(0xFF94A3B8)),
+                  filled: true,
+                  fillColor: const Color(0xFF1E293B),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFF334155)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFF334155)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // Password
+              TextField(
+                controller: _passwordController,
+                obscureText: _obscurePassword,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  labelText: 'Password',
+                  labelStyle: const TextStyle(color: Color(0xFF94A3B8)),
+                  prefixIcon: const Icon(Icons.lock, color: Color(0xFF94A3B8)),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                      color: const Color(0xFF94A3B8),
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _obscurePassword = !_obscurePassword;
+                      });
+                    },
+                  ),
                   filled: true,
                   fillColor: const Color(0xFF1E293B),
                   border: OutlineInputBorder(

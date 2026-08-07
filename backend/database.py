@@ -19,9 +19,10 @@ if raw_db_url.startswith("postgres://"):
     raw_db_url = raw_db_url.replace("postgres://", "postgresql://", 1)
 
 def build_engine():
-    """Builds SQLModel engine strictly for Supabase PostgreSQL"""
+    """Builds SQLModel engine for PostgreSQL/Supabase with automatic permanent SQLite fallback"""
     if not raw_db_url:
-        raise RuntimeError("DATABASE_URL environment variable is missing!")
+        print("DATABASE_URL not set - using permanent local SQLite database (sanjeevani.db)")
+        return create_engine("sqlite:///sanjeevani.db", echo=False, connect_args={"check_same_thread": False})
     
     pg_engine = create_engine(
         raw_db_url,
@@ -61,7 +62,14 @@ def create_db_and_tables():
             "ALTER TABLE drivers ADD COLUMN IF NOT EXISTS shift_timing VARCHAR(255) DEFAULT 'Morning Shift (08:00 AM - 04:00 PM)';",
             "ALTER TABLE drivers ADD COLUMN IF NOT EXISTS name VARCHAR(255);",
             "ALTER TABLE ambulances ADD COLUMN IF NOT EXISTS assigned_driver_name VARCHAR(255);",
-            "ALTER TABLE ambulances ADD COLUMN IF NOT EXISTS vehicle_type VARCHAR(255) DEFAULT 'Basic';"
+            "ALTER TABLE ambulances ADD COLUMN IF NOT EXISTS vehicle_type VARCHAR(255) DEFAULT 'Basic';",
+            "ALTER TABLE helpers ADD COLUMN IF NOT EXISTS latitude FLOAT;",
+            "ALTER TABLE helpers ADD COLUMN IF NOT EXISTS longitude FLOAT;",
+            "ALTER TABLE helpers ADD COLUMN IF NOT EXISTS location VARCHAR(255);",
+            "ALTER TABLE helpers ADD COLUMN IF NOT EXISTS role_type VARCHAR(100) DEFAULT 'ASHA Community Health Worker';",
+            "ALTER TABLE helpers ADD COLUMN IF NOT EXISTS cert_id VARCHAR(100);",
+            "ALTER TABLE helpers ADD COLUMN IF NOT EXISTS skills JSON DEFAULT '[]';",
+            "ALTER TABLE helpers ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;"
         ]
         for stmt in alter_statements:
             try:
