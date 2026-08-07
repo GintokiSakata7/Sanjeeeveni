@@ -17,6 +17,7 @@ import {
   AlertTriangle,
   Send
 } from 'lucide-react';
+import { getApiUrl } from '../../../config';
 
 export default function AdminDashboardPage({ adminUser, onLogout, onBackToCitizen }) {
   const [stats, setStats] = useState({
@@ -55,8 +56,8 @@ export default function AdminDashboardPage({ adminUser, onLogout, onBackToCitize
     setIsLoading(true);
     try {
       const [statsRes, hospRes] = await Promise.all([
-        fetch('http://localhost:8000/api/v1/admin/stats'),
-        fetch('http://localhost:8000/api/v1/admin/hospitals')
+        fetch(getApiUrl('/api/v1/admin/stats')),
+        fetch(getApiUrl('/api/v1/admin/hospitals'))
       ]);
 
       if (statsRes.ok) {
@@ -83,7 +84,7 @@ export default function AdminDashboardPage({ adminUser, onLogout, onBackToCitize
   const handleVerifyAction = async (hospitalId, status, notes = '') => {
     setProcessingId(hospitalId);
     try {
-      const response = await fetch(`http://localhost:8000/api/v1/admin/verify-hospital/${hospitalId}`, {
+      const response = await fetch(getApiUrl(`/api/v1/admin/verify-hospital/${hospitalId}`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

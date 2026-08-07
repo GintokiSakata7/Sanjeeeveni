@@ -8,6 +8,7 @@ import { sendSosRequest, sendAudioSosRequest } from '../services/api';
 import RadarCanvas from '../components/RadarCanvas';
 import HospitalResponsePanel from '../components/HospitalResponsePanel';
 import useRadarSearch from '../hooks/useRadarSearch';
+import { API_BASE_URL } from '../config';
 
 export default function CitizenSosPage({
   selectedLang: propSelectedLang,
@@ -232,7 +233,7 @@ export default function CitizenSosPage({
       }
     } catch (err) {
       console.error("Error submitting SOS:", err);
-      alert("Unable to connect to AERO AI FastAPI server on http://localhost:8000.");
+      alert(`Unable to connect to AERO AI FastAPI server on ${API_BASE_URL}.`);
     } finally {
       setLoading(false);
     }

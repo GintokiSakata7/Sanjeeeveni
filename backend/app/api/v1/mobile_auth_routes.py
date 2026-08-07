@@ -12,7 +12,7 @@ import uuid
 from datetime import datetime
 
 from database import get_session
-from app.models.hospital_models import Doctor, Driver, Helper, Hospital, SOSRequest
+from app.models.hospital_models import Doctor, Driver, Helper, Hospital, SOSRequest, SOSTimeline, HelperNotification
 from app.schemas.mobile_auth_schemas import (
     DoctorLoginRequest, DriverLoginRequest,
     HelperRegisterRequest, HelperLoginRequest,
@@ -422,4 +422,75 @@ def get_live_cases(db: Session = Depends(get_session)):
         "total": len(formatted_cases),
         "cases": formatted_cases
     }
+
+@router.get("/driver/assigned-cases/{driver_id}")
+def get_driver_assigned_cases(driver_id: str, db: Session = Depends(get_session)):
+    """Driver polls this to get new emergency dispatches."""
+    sos_items = db.exec(
+        select(SOSRequest)
+        .where(SOSRequest.assigned_driver_id == driver_id)
+        .order_by(SOSRequest.updated_at.desc())
+    ).all()
+
+    cases = []
+    for sos in sos_items:
+        cases.append({
+            "id": sos.id,
+            "patient_name": f"Victim ({sos.id[-4:]})",
+            "emergency_type": sos.transcript if sos.transcript else "Trauma",
+            "severity": sos.triage_urgency if sos.triage_urgency else "CRITICAL",
+            "latitude": sos.citizen_lat,
+            "longitude": sos.citizen_lng,
+            "status": sos.driver_status,
+            "timestamp": sos.updated_at.isoformat() if sos.updated_at else sos.created_at.isoformat()
+        })
+    return {"total": len(cases), "cases": cases}
+
+@router.get("/helper/nearby-alerts/{helper_id}")
+def get_helper_alerts(helper_id: str, db: Session = Depends(get_session)):
+    """Helpers check for nearby SOS alerts"""
+    alerts = db.exec(
+        select(HelperNotification, SOSRequest)
+        .join(SOSRequest)
+        .where(HelperNotification.helper_id == helper_id)
+        .order_by(HelperNotification.created_at.desc())
+    ).all()
+    
+    formatted = []
+    for notif, sos in alerts:
+        formatted.append({
+            "notification_id": notif.id,
+            "sos_id": sos.id,
+            "status": notif.status,
+            "latitude": sos.citizen_lat,
+            "longitude": sos.citizen_lng,
+            "emergency_type": sos.transcript,
+            "timestamp": notif.created_at.isoformat()
+        })
+    return {"total": len(formatted), "alerts": formatted}
+
+@router.post("/helper/respond/{notification_id}")
+def helper_respond(notification_id: str, db: Session = Depends(get_session)):
+    """Helper accepts the alert and heads to the scene"""
+    notif = db.exec(select(HelperNotification).where(HelperNotification.id == notification_id)).first()
+    if not notif:
+        raise HTTPException(status_code=404, detail="Notification not found")
+        
+    notif.status = "RESPONDING"
+    db.add(notif)
+    
+    helper = db.exec(select(Helper).where(Helper.id == notif.helper_id)).first()
+    
+    tl = SOSTimeline(
+        sos_id=notif.sos_id,
+        event_type="HELPER_RESPONDING",
+        actor_role="helper",
+        actor_id=notif.helper_id,
+        actor_name=helper.name if helper else "Unknown Helper",
+        message=f"Community Helper {helper.name if helper else ''} is responding and heading to the scene."
+    )
+    db.add(tl)
+    db.commit()
+    
+    return {"message": "Response logged"}
 

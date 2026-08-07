@@ -1,4 +1,6 @@
-const API_BASE_URL = "http://localhost:8000/api/emergency";
+import { getApiUrl } from '../config';
+
+const API_BASE_URL = getApiUrl('/api/emergency');
 
 /**
  * Sends SOS text payload to FastAPI backend

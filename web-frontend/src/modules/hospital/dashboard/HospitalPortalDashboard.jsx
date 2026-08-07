@@ -25,6 +25,10 @@ import {
   EyeOff,
   Lock
 } from 'lucide-react';
+import {
+  PieChart, Pie, Cell, Tooltip as RechartsTooltip, ResponsiveContainer
+} from 'recharts';
+import { getApiUrl } from '../../../config';
 
 import IncomingSOSAlert from '../components/IncomingSOSAlert';
 
@@ -60,7 +64,7 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
 
     const pollSOS = async () => {
       try {
-        const res = await fetch(`http://localhost:8000/api/v1/routing/pending/${hospitalId}`);
+        const res = await fetch(getApiUrl(`/api/v1/routing/pending/${hospitalId}`));
         if (res.ok) {
           const requests = await res.json();
           if (requests && requests.length > 0) {
@@ -81,15 +85,22 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
     return () => clearInterval(intervalId);
   }, [hospitalId]);
 
-  const handleRespondToSOS = async (sosId, status, doctorId = null) => {
+  const handleRespondToSOS = async (sosId, status, driverId = null, ambulanceId = null) => {
     try {
-      const payload = { status, doctor_id: doctorId };
-      const res = await fetch(`http://localhost:8000/api/v1/routing/respond/${sosId}`, {
+      const payload = { status };
+      const res = await fetch(getApiUrl(`/api/v1/routing/respond/${sosId}`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
       if (res.ok) {
+        if (status === 'ACCEPTED' && driverId && ambulanceId) {
+           await fetch(getApiUrl(`/api/v1/routing/assign-driver/${sosId}`), {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({ driver_id: driverId, ambulance_id: ambulanceId })
+           });
+        }
         triggerToast(`SOS Emergency ${status}`, status === 'ACCEPTED' ? 'success' : 'error');
         setIncomingSOS(null);
       } else {
@@ -167,10 +178,10 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
     setIsLoading(true);
     try {
       const [statsRes, docRes, drvRes, ambRes] = await Promise.all([
-        fetch(`http://localhost:8000/api/v1/hms/overview-stats/${hospitalId}`),
-        fetch(`http://localhost:8000/api/v1/hms/doctors/${hospitalId}`),
-        fetch(`http://localhost:8000/api/v1/hms/drivers/${hospitalId}`),
-        fetch(`http://localhost:8000/api/v1/hms/ambulances/${hospitalId}`)
+        fetch(getApiUrl(`/api/v1/hms/overview-stats/${hospitalId}`)),
+        fetch(getApiUrl(`/api/v1/hms/doctors/${hospitalId}`)),
+        fetch(getApiUrl(`/api/v1/hms/drivers/${hospitalId}`)),
+        fetch(getApiUrl(`/api/v1/hms/ambulances/${hospitalId}`))
       ]);
 
       if (statsRes.ok) setStats(await statsRes.json());
@@ -194,7 +205,7 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
     try {
       // Strip internal-only time picker fields before sending to backend
       const { shift_start, shift_end, ...doctorPayload } = doctorForm;
-      const res = await fetch('http://localhost:8000/api/v1/hms/doctors', {
+      const res = await fetch(getApiUrl('/api/v1/hms/doctors'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...doctorPayload, hospital_id: hospitalId })
@@ -224,7 +235,7 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
       // Strip internal-only time picker fields, and null out optional empty strings
       const { shift_start, shift_end, ...driverPayload } = driverForm;
       if (!driverPayload.email) driverPayload.email = null;
-      const res = await fetch('http://localhost:8000/api/v1/hms/drivers', {
+      const res = await fetch(getApiUrl('/api/v1/hms/drivers'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...driverPayload, hospital_id: hospitalId })
@@ -251,7 +262,7 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
   const handleAddAmbulance = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch('http://localhost:8000/api/v1/hms/ambulances', {
+      const res = await fetch(getApiUrl('/api/v1/hms/ambulances'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...ambulanceForm, hospital_id: hospitalId })
@@ -270,7 +281,7 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
   const handleDeleteDoctor = async (id, name) => {
     if (!window.confirm(`Delete Dr. ${name} from roster?`)) return;
     try {
-      await fetch(`http://localhost:8000/api/v1/hms/doctors/${id}`, { method: 'DELETE' });
+      await fetch(getApiUrl(`/api/v1/hms/doctors/${id}`), { method: 'DELETE' });
       triggerToast(`Dr. ${name} removed`);
       loadData();
     } catch (err) {
@@ -281,7 +292,7 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
   const handleDeleteDriver = async (id, name) => {
     if (!window.confirm(`Delete driver ${name}?`)) return;
     try {
-      await fetch(`http://localhost:8000/api/v1/hms/drivers/${id}`, { method: 'DELETE' });
+      await fetch(getApiUrl(`/api/v1/hms/drivers/${id}`), { method: 'DELETE' });
       triggerToast(`Driver ${name} removed`);
       loadData();
     } catch (err) {
@@ -292,7 +303,7 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
   const handleDeleteAmbulance = async (id, reg) => {
     if (!window.confirm(`Remove vehicle ${reg}?`)) return;
     try {
-      await fetch(`http://localhost:8000/api/v1/hms/ambulances/${id}`, { method: 'DELETE' });
+      await fetch(getApiUrl(`/api/v1/hms/ambulances/${id}`), { method: 'DELETE' });
       triggerToast(`Ambulance ${reg} removed`);
       loadData();
     } catch (err) {
@@ -303,7 +314,7 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
   // Inline Status Update Handlers
   const handleUpdateDoctorStatus = async (doctorId, newStatus, doctorName) => {
     try {
-      const res = await fetch(`http://localhost:8000/api/v1/hms/doctors/${doctorId}`, {
+      const res = await fetch(getApiUrl(`/api/v1/hms/doctors/${doctorId}`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus })
@@ -318,7 +329,7 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
 
   const handleUpdateDriverStatus = async (driverId, newStatus, driverName) => {
     try {
-      const res = await fetch(`http://localhost:8000/api/v1/hms/drivers/${driverId}`, {
+      const res = await fetch(getApiUrl(`/api/v1/hms/drivers/${driverId}`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus })
@@ -1108,9 +1119,10 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
       {/* SOS EMERGENCY ALERT MODAL */}
       <IncomingSOSAlert
         sosRequest={incomingSOS}
-        availableDoctors={doctors.filter(d => d.status === 'Available')}
-        onAccept={(sosId, docId) => handleRespondToSOS(sosId, 'ACCEPTED', docId)}
-        onReject={(sosId) => handleRespondToSOS(sosId, 'REJECTED')}
+        availableDrivers={drivers.filter(d => d.status === 'Available' || d.status === 'Available (Standby)')}
+        availableAmbulances={ambulances.filter(a => a.status === 'Available' || a.status === 'Available (Standby)')}
+        onAccept={(id, driverId, ambId) => handleRespondToSOS(id, 'ACCEPTED', driverId, ambId)}
+        onReject={(id) => handleRespondToSOS(id, 'REJECTED')}
       />
     </div>
   );

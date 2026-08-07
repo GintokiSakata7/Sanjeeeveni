@@ -16,13 +16,18 @@ class ApiService {
   /// Candidate URLs to try depending on environment
   List<String> get _candidateUrls {
     if (kIsWeb) {
-      return ['http://localhost:8000', 'http://127.0.0.1:8000'];
+      return [
+        'http://localhost:8000', 
+        'http://127.0.0.1:8000',
+        'https://sanjeeeveni.onrender.com'
+      ];
     }
     return [
       'http://127.0.0.1:8000',     // ADB reverse (physical device over USB) / Local PC
       'http://10.0.2.2:8000',      // Android Emulator standard loopback
       'http://172.30.187.129:8000', // Wi-Fi LAN IP fallback
       'http://localhost:8000',
+      'https://sanjeeeveni.onrender.com', // Secondary Remote
     ];
   }
 

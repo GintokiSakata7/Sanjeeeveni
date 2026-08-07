@@ -1,4 +1,6 @@
-const API_BASE_URL = 'http://localhost:8000/api/v1/hospital';
+import { getApiUrl } from '../../../config';
+
+const API_BASE_URL = getApiUrl('/api/v1/hospital');
 
 const formatErrorDetail = (detail, fallbackMsg) => {
   if (!detail) return fallbackMsg;

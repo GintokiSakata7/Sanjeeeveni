@@ -1,11 +1,12 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { supabase } from '../services/supabaseClient';
+import { getApiUrl } from '../config';
 
-// Radius steps in meters (matches Pygame config.py)
-const RADIUS_STEPS = [50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000];
+// Exponential radius steps in meters (50m to 100km)
+const RADIUS_STEPS = [50, 250, 1000, 5000, 25000, 100000];
 
 // Expansion interval: how long (ms) to wait at each radius before checking for expansion
-const EXPANSION_CHECK_INTERVAL = 4000;
+const EXPANSION_CHECK_INTERVAL = 3000;
 
 /**
  * Haversine formula — calculates distance in meters between two lat/lon points.
@@ -146,7 +147,7 @@ export default function useRadarSearch() {
 
     try {
       // Fetch ALL hospitals from the FastAPI backend instead of direct Supabase dummy table
-      const res = await fetch('http://localhost:8000/api/v1/hospital/all');
+      const res = await fetch(getApiUrl('/api/v1/hospital/all'));
       if (!res.ok) throw new Error("Failed to fetch hospitals");
       const data = await res.json();
 
@@ -217,7 +218,7 @@ export default function useRadarSearch() {
     // Send SOS Routing request to the backend for this specific hospital
     try {
       const payload = sosPayloadRef.current || {};
-      const res = await fetch('http://localhost:8000/api/v1/routing/send', {
+      const res = await fetch(getApiUrl('/api/v1/routing/send'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -299,7 +300,7 @@ export default function useRadarSearch() {
             const sosId = currentResponses[`${hospitalId}_sos_id`];
             if (sosId) {
               try {
-                const res = await fetch(`http://localhost:8000/api/v1/routing/status/${sosId}`);
+                const res = await fetch(getApiUrl(`/api/v1/routing/status/${sosId}`));
                 if (res.ok) {
                   const data = await res.json();
                   if (data.status === 'ACCEPTED') {
@@ -314,7 +315,7 @@ export default function useRadarSearch() {
             }
           }
         }
-      }, 3000);
+      }, 2000); // Polling every 2 seconds
     }
 
     if (!isSearchActive || finalHospital || allHospitals.length === 0) return;
@@ -329,14 +330,14 @@ export default function useRadarSearch() {
       const hospitalsInRadius = (state.allHospitals || []).filter(h => h.distance <= radius);
       const resp = state.responses || {};
 
-      // Check if all hospitals in this radius have been discovered and responded to
-      const allDiscovered = hospitalsInRadius.every(h => pendingDiscoveryRef.current.has(h.id));
-      const allResponded = hospitalsInRadius.every(h => resp[h.id] && resp[h.id] !== 'PENDING');
       const anyAccepted = hospitalsInRadius.some(h => resp[h.id] === 'ACCEPTED');
 
       if (anyAccepted) return; // Don't expand if someone accepted
 
-      const shouldExpand = hospitalsInRadius.length === 0 || (allDiscovered && allResponded);
+      // EXPONENTIAL EXPANSION:
+      // Don't wait for hospitals to respond. If we haven't found an accepting hospital yet,
+      // keep expanding the search radius.
+      const shouldExpand = !anyAccepted;
 
       if (shouldExpand) {
         if (rsi < RADIUS_STEPS.length - 1) {
@@ -346,14 +347,11 @@ export default function useRadarSearch() {
 
           setRadiusStepIndex(newIndex);
 
-          if (hospitalsInRadius.length === 0) {
-            addNotification(`NO HOSPITALS AT ${oldStr} → EXPANDING TO ${newStr}`, 'expand');
-          } else {
-            addNotification(`ALL REJECTED AT ${oldStr} → EXPANDING TO ${newStr}`, 'expand');
+            addNotification(`EXPANDING RADIUS TO ${newStr}`, 'expand');
           }
         } else {
           // Max radius reached
-          addNotification('MAX RADIUS (50 km) REACHED — NO HOSPITAL ACCEPTED', 'error');
+          addNotification('MAX RADIUS (100 km) REACHED — NO HOSPITAL ACCEPTED', 'error');
           setIsSearchActive(false);
         }
       }

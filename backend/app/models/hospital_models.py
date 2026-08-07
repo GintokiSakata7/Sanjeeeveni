@@ -239,7 +239,45 @@ class SOSRequest(SQLModel, table=True):
     triage_urgency: str
     image_url: Optional[str] = Field(default=None)
     status: str = Field(default="PENDING")  # PENDING, ACCEPTED, REJECTED
+    
+    # PRIMARY: Ambulance Driver Assignment
+    assigned_driver_id: Optional[str] = Field(default=None, foreign_key="drivers.id")
+    assigned_driver_name: Optional[str] = Field(default=None)
+    assigned_ambulance_id: Optional[str] = Field(default=None, foreign_key="ambulances.id")
+    assigned_ambulance_reg: Optional[str] = Field(default=None)
+    driver_status: str = Field(default="NOT_ASSIGNED")  # NOT_ASSIGNED, ASSIGNED, ACCEPTED, EN_ROUTE, ARRIVED
+    
+    # SECONDARY: Doctor Assignment
     assigned_doctor_id: Optional[str] = Field(default=None, foreign_key="doctors.id")
     assigned_doctor_name: Optional[str] = Field(default=None)
+    doctor_status: str = Field(default="NOT_ASSIGNED")  # NOT_ASSIGNED, ASSIGNED, ACCEPTED
+    
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class SOSTimeline(SQLModel, table=True):
+    """Tracks every event in an SOS lifecycle for the info/chat feed"""
+    __tablename__ = "sos_timeline"
+    __table_args__ = {"extend_existing": True}
+    
+    id: str = Field(default_factory=lambda: f"TL-{uuid.uuid4().hex[:12].upper()}", primary_key=True)
+    sos_id: str = Field(foreign_key="sos_requests.id", index=True)
+    event_type: str  # CREATED, HOSPITAL_NOTIFIED, HOSPITAL_ACCEPTED, DRIVER_ASSIGNED, DRIVER_ACCEPTED, EN_ROUTE, ARRIVED, DOCTOR_ASSIGNED, HELPER_NOTIFIED, MESSAGE
+    actor_role: str  # citizen, hospital, driver, doctor, helper, system
+    actor_id: Optional[str] = None
+    actor_name: Optional[str] = None
+    message: str
+    event_metadata: dict = Field(default={}, sa_column=Column(JSON))
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class HelperNotification(SQLModel, table=True):
+    __tablename__ = "helper_notifications"
+    __table_args__ = {"extend_existing": True}
+    
+    id: str = Field(default_factory=lambda: f"HN-{uuid.uuid4().hex[:12].upper()}", primary_key=True)
+    sos_id: str = Field(foreign_key="sos_requests.id", index=True)
+    helper_id: str = Field(foreign_key="helpers.id", index=True)
+    status: str = Field(default="SENT")  # SENT, SEEN, RESPONDING, ARRIVED
+    created_at: datetime = Field(default_factory=datetime.utcnow)
