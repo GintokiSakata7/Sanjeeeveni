@@ -347,9 +347,7 @@ export default function useRadarSearch() {
           const newStr = formatDistance(RADIUS_STEPS[newIndex]);
 
           setRadiusStepIndex(newIndex);
-
-            addNotification(`EXPANDING RADIUS TO ${newStr}`, 'expand');
-          }
+          addNotification(`EXPANDING RADIUS TO ${newStr}`, 'expand');
         } else {
           // Max radius reached
           addNotification('MAX RADIUS (100 km) REACHED — NO HOSPITAL ACCEPTED', 'error');
