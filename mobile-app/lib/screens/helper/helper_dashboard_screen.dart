@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
@@ -7,6 +8,7 @@ import '../../services/location_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/preferences_service.dart';
 import '../../widgets/app_toast.dart';
+import '../../widgets/emergency_alarm_dialog.dart';
 import '../auth/unified_login_screen.dart';
 
 class HelperDashboardScreen extends StatefulWidget {
@@ -31,27 +33,94 @@ class _HelperDashboardScreenState extends State<HelperDashboardScreen> {
   String _calculatedDistanceText = '';
   String _calculatedEtaText = '';
   DateTime? _lastBackPressTime;
+  Timer? _pollTimer;
+  final Set<String> _seenCaseIds = {};
+  final Set<String> _rejectedCaseIds = {};
+  bool _isAlarmShowing = false;
 
   @override
   void initState() {
     super.initState();
     _loadLiveHelperCases();
     _fetchHelperGps();
+    _pollTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
+      _loadLiveHelperCases();
+    });
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadLiveHelperCases() async {
     try {
-      final res = await ApiService().getLiveCases();
-      final list = res['cases'] as List? ?? [];
-      if (mounted) {
-        setState(() {
-          _nearbyCases = list.map((e) => EmergencyCase.fromJson(e as Map<String, dynamic>)).toList();
-        });
-        if (_currentGpsPosition != null) {
-          _updateDistancesWithRealGps(_currentGpsPosition!);
+      final res = await ApiService().getHelperAlerts(_prefs.loggedInUserId);
+      final list = res['alerts'] as List? ?? [];
+      final loadedCases = list.map((e) => EmergencyCase.fromJson(e as Map<String, dynamic>)).toList();
+      
+      if (!mounted) return;
+      
+      setState(() {
+        if (_acceptedCase != null) {
+          _nearbyCases = [];
+        } else {
+          _nearbyCases = loadedCases.where((c) => 
+            c.status == 'PENDING' && 
+            !_rejectedCaseIds.contains(c.id) && 
+            c.id != _acceptedCase?.id
+          ).toList();
+        }
+      });
+      
+      if (_currentGpsPosition != null) {
+        _updateDistancesWithRealGps(_currentGpsPosition!);
+      }
+
+      if (_acceptedCase == null) {
+        for (var c in loadedCases) {
+          if (c.status == 'PENDING' && !_seenCaseIds.contains(c.id) && !_isAlarmShowing && !_rejectedCaseIds.contains(c.id)) {
+            _seenCaseIds.add(c.id);
+            _triggerEmergencyAlarm(c);
+            break;
+          }
         }
       }
     } catch (_) {}
+  }
+
+  void _triggerEmergencyAlarm(EmergencyCase ec) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _isAlarmShowing) return;
+      setState(() => _isAlarmShowing = true);
+
+      NotificationService.showInAppAlert(
+        context,
+        title: '🚨 NEARBY EMERGENCY ALERT',
+        message: 'A citizen nearby needs immediate assistance! (${ec.severity})',
+        icon: Icons.notifications_active,
+        backgroundColor: const Color(0xFFDC2626),
+      );
+
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => EmergencyAlarmDialog(
+          emergencyCase: ec,
+          onAccept: () {
+            Navigator.of(ctx).pop();
+            if (mounted) setState(() => _isAlarmShowing = false);
+            _acceptCase(ec);
+          },
+          onDismiss: () {
+            Navigator.of(ctx).pop();
+            if (mounted) setState(() => _isAlarmShowing = false);
+            _rejectCase(ec);
+          },
+        ),
+      );
+    });
   }
 
   Future<void> _fetchHelperGps() async {
@@ -79,13 +148,21 @@ class _HelperDashboardScreenState extends State<HelperDashboardScreen> {
     }
   }
 
-  void _acceptCase(EmergencyCase ec) {
+  Future<void> _acceptCase(EmergencyCase ec) async {
     setState(() {
       _acceptedCase = ec;
-      _nearbyCases.removeWhere((item) => item.id == ec.id);
+      _nearbyCases = [];
       _calculatedDistanceText = '${ec.distanceKm} km';
       _calculatedEtaText = '${ec.etaMinutes} min walk';
     });
+
+    if (ec.notificationId != null) {
+      try {
+        await ApiService().acceptHelperAlert(ec.notificationId!);
+      } catch (e) {
+        // Silently fail or log if needed, UI is already updated optimistically
+      }
+    }
 
     if (_currentGpsPosition != null) {
       _updateDistancesWithRealGps(_currentGpsPosition!);
@@ -102,8 +179,15 @@ class _HelperDashboardScreenState extends State<HelperDashboardScreen> {
 
   void _rejectCase(EmergencyCase ec) {
     setState(() {
+      _rejectedCaseIds.add(ec.id);
       _nearbyCases.removeWhere((item) => item.id == ec.id);
     });
+
+    if (ec.notificationId != null) {
+      try {
+        ApiService().rejectHelperAlert(ec.notificationId!);
+      } catch (_) {}
+    }
 
     NotificationService.showInAppAlert(
       context,

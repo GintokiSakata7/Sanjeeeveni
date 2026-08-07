@@ -357,14 +357,27 @@ def get_helper_alerts(helper_id: str, db: Client = Depends(get_supabase)):
         formatted = []
         for notif in notifs:
             sos_res = db.table("sos_requests").select("*").eq("id", notif["sos_id"]).execute().data
-            sos = sos_res[0] if sos_res else {}
+            if not sos_res:
+                continue
+            sos = sos_res[0]
             formatted.append({
+                "id": sos.get("id"),
                 "notification_id": notif["id"],
-                "sos_id": notif["sos_id"],
                 "status": notif["status"],
+                "patient_name": "Emergency Victim",
+                "patient_age": 45,
+                "patient_gender": "Unknown",
+                "blood_group": "O+",
+                "emergency_type": sos.get("transcript", "Emergency Intake"),
+                "severity": sos.get("severity", "HIGH"),
                 "latitude": sos.get("citizen_lat"),
                 "longitude": sos.get("citizen_lng"),
-                "emergency_type": sos.get("transcript"),
+                "location_address": "Emergency Scene Coordinates",
+                "distance_km": 1.5,
+                "eta_minutes": 5,
+                "assigned_ambulance_unit": sos.get("assigned_ambulance_reg", "None"),
+                "assigned_hospital": "None",
+                "caller_phone": "+91 98765 43210",
                 "timestamp": notif.get("created_at")
             })
         return {"total": len(formatted), "alerts": formatted}
@@ -372,8 +385,33 @@ def get_helper_alerts(helper_id: str, db: Client = Depends(get_supabase)):
         return _net_err(e)
 
 
-@router.post("/helper/respond/{notification_id}")
-def helper_respond(notification_id: str, db: Client = Depends(get_supabase)):
+from pydantic import BaseModel
+
+class NotifyHelperPayload(BaseModel):
+    sos_id: str
+    helper_id: str
+
+import uuid
+
+@router.post("/helper/notify")
+def helper_notify(payload: NotifyHelperPayload, db: Client = Depends(get_supabase)):
+    if not db:
+        return JSONResponse(status_code=503, content={"detail": "Supabase client not initialized."})
+    try:
+        notif = {
+            "id": f"NOTIF-{str(uuid.uuid4())[:8].upper()}",
+            "sos_id": payload.sos_id,
+            "helper_id": payload.helper_id,
+            "status": "PENDING",
+            "created_at": datetime.utcnow().isoformat()
+        }
+        res = db.table("helper_notifications").insert(notif).execute()
+        return {"success": True, "notification": res.data[0] if res.data else None}
+    except Exception as e:
+        return _net_err(e)
+
+@router.post("/helper/accept/{notification_id}")
+def accept_helper_alert(notification_id: str, db: Client = Depends(get_supabase)):
     if not db:
         return JSONResponse(status_code=503, content={"detail": "Supabase client not initialized."})
     try:
@@ -381,24 +419,41 @@ def helper_respond(notification_id: str, db: Client = Depends(get_supabase)):
         if not notifs:
             raise HTTPException(status_code=404, detail="Notification not found")
         notif = notifs[0]
-
-        db.table("helper_notifications").update({"status": "RESPONDING"}).eq("id", notification_id).execute()
-
+        
+        db.table("helper_notifications").update({"status": "ACCEPTED"}).eq("id", notification_id).execute()
+        
         helpers = db.table("helpers").select("name").eq("id", notif["helper_id"]).execute().data
         helper_name = helpers[0]["name"] if helpers else "Unknown Helper"
-
+        
+        db.table("sos_requests").update({
+            "status": "HELPER_ACCEPTED",
+            "assigned_helper_id": notif["helper_id"],
+            "updated_at": datetime.utcnow().isoformat()
+        }).eq("id", notif["sos_id"]).execute()
+        
         tl = {
             "sos_id": notif["sos_id"],
             "event_type": "HELPER_RESPONDING",
             "actor_role": "helper",
             "actor_id": notif["helper_id"],
             "actor_name": helper_name,
-            "message": f"Community Helper {helper_name} is responding and heading to the scene.",
+            "message": f"Community Helper {helper_name} accepted the alert and is en route.",
             "created_at": datetime.utcnow().isoformat()
         }
         db.table("sos_timelines").insert(tl).execute()
-        return {"message": "Response logged"}
+        
+        return {"success": True, "message": "Response logged and SOS updated."}
     except HTTPException:
         raise
+    except Exception as e:
+        return _net_err(e)
+
+@router.post("/helper/reject/{notification_id}")
+def reject_helper_alert(notification_id: str, db: Client = Depends(get_supabase)):
+    if not db:
+        return JSONResponse(status_code=503, content={"detail": "Supabase client not initialized."})
+    try:
+        db.table("helper_notifications").update({"status": "REJECTED"}).eq("id", notification_id).execute()
+        return {"success": True, "message": "Notification rejected."}
     except Exception as e:
         return _net_err(e)

@@ -209,6 +209,21 @@ class ApiService {
   Future<Map<String, dynamic>> getLiveCases() async {
     return _get('/api/v1/mobile/cases/live');
   }
+
+  /// Get targeted emergency alerts for this helper
+  Future<Map<String, dynamic>> getHelperAlerts(String helperId) async {
+    return _get('/api/v1/mobile/helper/nearby-alerts/$helperId');
+  }
+
+  /// Confirm & accept assigned emergency case on helper mobile app.
+  Future<Map<String, dynamic>> acceptHelperAlert(String notificationId) async {
+    return _post('/api/v1/mobile/helper/accept/$notificationId', {});
+  }
+
+  /// Reject emergency case on helper mobile app.
+  Future<Map<String, dynamic>> rejectHelperAlert(String notificationId) async {
+    return _post('/api/v1/mobile/helper/reject/$notificationId', {});
+  }
 }
 
 /// Custom exception for API errors with status code and user-facing message.

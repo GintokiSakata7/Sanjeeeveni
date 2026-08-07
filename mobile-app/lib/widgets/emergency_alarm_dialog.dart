@@ -225,15 +225,18 @@ class _EmergencyAlarmDialogState extends State<EmergencyAlarmDialog>
                       children: [
                         const Icon(Icons.person, color: Color(0xFF38BDF8), size: 20),
                         const SizedBox(width: 8),
-                        Text(
-                          '${ec.patientName}, ${ec.patientAge}y • ${ec.patientGender}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13,
+                        Expanded(
+                          child: Text(
+                            '${ec.patientName}, ${ec.patientAge}y • ${ec.patientGender}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        const Spacer(),
+                        const SizedBox(width: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(

@@ -131,19 +131,7 @@ export default function useHelperSearch() {
       }
 
       if (!data || data.length === 0) {
-        addNotification('NO HELPERS IN DB, USING MOCK DATA', 'warning');
-        data = Array.from({ length: 8 }).map((_, i) => {
-           const dLat = (Math.random() - 0.5) * 0.1;
-           const dLon = (Math.random() - 0.5) * 0.1;
-           const roles = ['First Aid Certified', 'Off-duty Nurse', 'CPR Certified', 'Paramedic', 'Medical Student'];
-           return {
-             id: `mock-helper-${i}`,
-             name: `Helper ${i + 1}`,
-             live_lat: userLat + dLat,
-             live_lon: userLon + dLon,
-             role: roles[Math.floor(Math.random() * roles.length)]
-           };
-        });
+        addNotification('NO HELPERS IN RADIUS OR DB IS EMPTY', 'warning');
       }
 
       // Enrich each helper with distance, bearing, and normalized string ID

@@ -118,18 +118,7 @@ export default function HelperResponsePanel({
 
               {status === 'PENDING' && !finalHelper && (
                 <div className="hrc-actions">
-                  <button
-                    className="btn-helper-accept"
-                    onClick={() => onAccept(h.id)}
-                  >
-                    ✅ YES
-                  </button>
-                  <button
-                    className="btn-helper-reject"
-                    onClick={() => onReject(h.id)}
-                  >
-                    ❌ NO
-                  </button>
+                  <span className="hrc-waiting-text" style={{fontSize: '12px', color: '#94a3b8', fontStyle: 'italic'}}>Waiting for response...</span>
                 </div>
               )}
             </div>

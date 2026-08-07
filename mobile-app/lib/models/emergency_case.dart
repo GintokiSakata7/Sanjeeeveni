@@ -1,5 +1,6 @@
 class EmergencyCase {
   final String id;
+  final String? notificationId;
   final String patientName;
   final int patientAge;
   final String patientGender;
@@ -42,6 +43,7 @@ class EmergencyCase {
     required this.status,
     this.helperAccepted = false,
     this.helperName,
+    this.notificationId,
     required this.timestamp,
   });
 
@@ -77,7 +79,8 @@ class EmergencyCase {
     }
 
     return EmergencyCase(
-      id: json['id']?.toString() ?? json['case_id']?.toString() ?? 'EMG-LIVE',
+      id: json['id']?.toString() ?? json['case_id']?.toString() ?? json['sos_id']?.toString() ?? 'EMG-LIVE',
+      notificationId: json['notification_id']?.toString(),
       patientName: json['patient_name']?.toString() ?? 'Emergency Victim',
       patientAge: json['patient_age'] is int ? json['patient_age'] : 45,
       patientGender: json['patient_gender']?.toString() ?? 'Emergency Intake',

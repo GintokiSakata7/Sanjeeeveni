@@ -10,6 +10,7 @@ import HospitalResponsePanel from '../components/HospitalResponsePanel';
 import useRadarSearch from '../hooks/useRadarSearch';
 import useHelperSearch from '../hooks/useHelperSearch';
 import HelperResponsePanel from '../components/HelperResponsePanel';
+import { supabase } from '../services/supabaseClient';
 import { API_BASE_URL } from '../config';
 
 export default function CitizenSosPage({
@@ -22,6 +23,7 @@ export default function CitizenSosPage({
   const [internalLang, setInternalLang] = useState("auto");
   const selectedLang = propSelectedLang || internalLang;
   const setSelectedLang = propSetSelectedLang || setInternalLang;
+  const notifiedHelpersRef = useRef(new Set());
 
   const [inputMode, setInputMode] = useState("voice"); // "voice" | "type"
   const [isListening, setIsListening] = useState(false);
@@ -265,6 +267,60 @@ export default function CitizenSosPage({
       window.speechSynthesis.speak(utterance);
     }
   };
+
+  // Notify newly discovered helpers
+  useEffect(() => {
+    if (!triageResult?.case_id) return;
+    
+    helperSearch.discoveredHelpers.forEach(async (h) => {
+      const helperId = String(h.id);
+      if (!notifiedHelpersRef.current.has(helperId)) {
+        notifiedHelpersRef.current.add(helperId);
+        try {
+          await fetch(`${API_BASE_URL}/api/v1/mobile/helper/notify`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sos_id: triageResult.case_id, helper_id: helperId })
+          });
+        } catch (err) {
+          console.error("Failed to notify helper", err);
+        }
+      }
+    });
+  }, [triageResult?.case_id, helperSearch.discoveredHelpers]);
+
+  // Poll Supabase for Helper Status
+  useEffect(() => {
+    if (!triageResult?.case_id) return;
+    
+    let intervalId = null;
+    if (helperSearch.isSearchActive && !helperSearch.finalHelper) {
+      intervalId = setInterval(async () => {
+        try {
+          const { data, error } = await supabase
+            .from('helper_notifications')
+            .select('helper_id, status')
+            .eq('sos_id', triageResult.case_id);
+            
+          if (!error && data) {
+            data.forEach(notif => {
+              if (notif.status === 'ACCEPTED') {
+                helperSearch.acceptHelper(notif.helper_id);
+              } else if (notif.status === 'REJECTED') {
+                helperSearch.rejectHelper(notif.helper_id);
+              }
+            });
+          }
+        } catch (err) {
+          console.error("Error polling helper status:", err);
+        }
+      }, 3000);
+    }
+    
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [triageResult?.case_id, helperSearch.isSearchActive, helperSearch.finalHelper, helperSearch.acceptHelper, helperSearch.rejectHelper]);
 
   // Prepare discovered IDs for radar canvas
   const discoveredIds = radar.discoveredHospitals.map(h => h.id);
