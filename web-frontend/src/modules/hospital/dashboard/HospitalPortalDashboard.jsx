@@ -23,7 +23,8 @@ import {
   ShieldCheck,
   Eye,
   EyeOff,
-  Lock
+  Lock,
+  Activity
 } from 'lucide-react';
 import {
   PieChart, Pie, Cell, Tooltip as RechartsTooltip, ResponsiveContainer
@@ -62,6 +63,10 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
 
   // SOS Routing State
   const [incomingSOS, setIncomingSOS] = useState(null);
+  const [activeSOSList, setActiveSOSList] = useState([]);
+  const [sosSubmitting, setSosSubmitting] = useState(false);
+  // Track IDs we've already accepted/rejected so the poll can't flash them back
+  const handledSOSIds = React.useRef(new Set());
 
   // Poll for incoming SOS Requests every 3 seconds
   useEffect(() => {
@@ -69,15 +74,26 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
 
     const pollSOS = async () => {
       try {
-        const res = await fetchWithFallback(`/api/v1/routing/pending/${hospitalId}`);
-        if (res.ok) {
-          const requests = await res.json();
-          if (requests && requests.length > 0) {
-            // Pick the most recent pending SOS to display
-            setIncomingSOS(requests[0]);
+        const resPending = await fetchWithFallback(`/api/v1/routing/pending/${hospitalId}`);
+        if (resPending.ok) {
+          const requests = await resPending.json();
+          // Filter out any SOS we've already handled in this session
+          const unhandled = (requests || []).filter(r => !handledSOSIds.current.has(r.id));
+          if (unhandled.length > 0) {
+            setIncomingSOS(prev => {
+              // Don't reset if it's the same one (prevents flicker)
+              if (prev && prev.id === unhandled[0].id) return prev;
+              return unhandled[0];
+            });
           } else {
             setIncomingSOS(null);
           }
+        }
+        
+        const resActive = await fetchWithFallback(`/api/v1/routing/active/${hospitalId}`);
+        if (resActive.ok) {
+           const activeCases = await resActive.json();
+           setActiveSOSList(activeCases || []);
         }
       } catch (err) {
         // Silently fail polling
@@ -90,7 +106,12 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
     return () => clearInterval(intervalId);
   }, [hospitalId]);
 
-  const handleRespondToSOS = async (sosId, status, driverId = null, ambulanceId = null) => {
+  const handleRespondToSOS = async (sosId, status, driverId = null, doctorId = null) => {
+    if (sosSubmitting) return;
+    setSosSubmitting(true);
+    // Immediately lock this SOS ID so the poll won't re-show it
+    handledSOSIds.current.add(sosId);
+    setIncomingSOS(null);
     try {
       const payload = { status };
       const res = await fetchWithFallback(`/api/v1/routing/respond/${sosId}`, {
@@ -99,20 +120,33 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
         body: JSON.stringify(payload)
       });
       if (res.ok) {
-        if (status === 'ACCEPTED' && driverId && ambulanceId) {
+        if (status === 'ACCEPTED' && driverId) {
            await fetchWithFallback(`/api/v1/routing/assign-driver/${sosId}`, {
              method: 'POST',
              headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify({ driver_id: driverId, ambulance_id: ambulanceId })
+             body: JSON.stringify({ driver_id: driverId })
+           });
+        }
+        if (status === 'ACCEPTED' && doctorId) {
+           await fetchWithFallback(`/api/v1/routing/assign-doctor/${sosId}`, {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({ doctor_id: doctorId })
            });
         }
         triggerToast(`SOS Emergency ${status}`, status === 'ACCEPTED' ? 'success' : 'error');
-        setIncomingSOS(null);
+        // Refresh doctor/driver counts so statuses update immediately
+        loadData();
       } else {
+        // On failure, remove from handled set so it can be retried
+        handledSOSIds.current.delete(sosId);
         triggerToast('Failed to respond to SOS', 'error');
       }
     } catch (err) {
+      handledSOSIds.current.delete(sosId);
       triggerToast('Network error responding to SOS', 'error');
+    } finally {
+      setSosSubmitting(false);
     }
   };
 
@@ -497,6 +531,61 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
                   <span className="card-sub text-purple-300">Licensed Emergency Personnel</span>
                 </div>
               </div>
+
+              {/* ACTIVE EMERGENCIES PANEL */}
+              {activeSOSList.length > 0 && (
+                 <div className="hms-panel-box mt-6" style={{ border: '1px solid #ef4444', backgroundColor: 'rgba(239, 68, 68, 0.05)' }}>
+                    <div className="panel-header" style={{ borderBottom: '1px solid rgba(239, 68, 68, 0.2)' }}>
+                      <h4 style={{ color: '#ef4444', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                         <Activity size={18} className="animate-pulse" /> Active Emergencies
+                      </h4>
+                    </div>
+                    <div className="panel-list" style={{ gap: '10px', padding: '15px' }}>
+                       {activeSOSList.map(sos => (
+                          <div key={sos.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#0f1523', padding: '15px', borderRadius: '8px', border: '1px solid #1e293b' }}>
+                             <div>
+                                <strong style={{ color: '#fff', fontSize: '16px' }}>SOS ID: {sos.id.split('-').pop()}</strong>
+                                <p style={{ color: '#94a3b8', fontSize: '13px', margin: '4px 0' }}>Triage: <span style={{ color: '#ef4444' }}>{sos.triage_urgency}</span></p>
+                                <p style={{ color: '#cbd5e1', fontSize: '13px', fontStyle: 'italic', margin: 0 }}>"{sos.transcript}"</p>
+                                <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+                                  <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '12px', backgroundColor: 'rgba(59, 130, 246, 0.1)', color: '#60a5fa' }}>
+                                    Ambulance: {sos.assigned_ambulance_reg || 'N/A'}
+                                  </span>
+                                  <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '12px', backgroundColor: 'rgba(244, 114, 182, 0.1)', color: '#f472b6' }}>
+                                    Doctor: {sos.assigned_doctor_name || 'N/A'}
+                                  </span>
+                                </div>
+                             </div>
+                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '10px' }}>
+                                <span style={{ 
+                                   fontSize: '12px', padding: '4px 10px', borderRadius: '4px', fontWeight: 'bold',
+                                   backgroundColor: (sos.status === 'DOCTOR_ACCEPTED' || sos.doctor_status === 'ACCEPTED') ? 'rgba(52, 211, 153, 0.2)' : 'rgba(234, 179, 8, 0.2)', 
+                                   color: (sos.status === 'DOCTOR_ACCEPTED' || sos.doctor_status === 'ACCEPTED') ? '#34d399' : '#facc15' 
+                                }}>
+                                   {(sos.status === 'DOCTOR_ACCEPTED' || sos.doctor_status === 'ACCEPTED') ? '✓ Doctor Accepted' : 'Waiting for Doctor'}
+                                </span>
+                                {(sos.status === 'DOCTOR_ACCEPTED' || sos.doctor_status === 'ACCEPTED') && (
+                                   <button className="btn-sec" style={{ fontSize: '12px', padding: '6px 12px', borderColor: '#34d399', color: '#34d399' }} onClick={async () => {
+                                      try {
+                                         const res = await fetchWithFallback(`/api/v1/routing/initiate-call/${sos.id}`, { method: 'POST' });
+                                         if (res.ok) {
+                                            triggerToast('📞 Call initiated — patient will be notified', 'success');
+                                         } else {
+                                            triggerToast('Failed to initiate call', 'error');
+                                         }
+                                      } catch (err) {
+                                         triggerToast('Network error initiating call', 'error');
+                                      }
+                                   }}>
+                                      📞 Contact Doctor
+                                   </button>
+                                )}
+                             </div>
+                          </div>
+                       ))}
+                    </div>
+                 </div>
+              )}
 
               {/* Roster Previews */}
               <div className="hms-two-col-grid mt-6">
@@ -1117,9 +1206,10 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
       {/* SOS EMERGENCY ALERT MODAL */}
       <IncomingSOSAlert
         sosRequest={incomingSOS}
-        availableDrivers={drivers.filter(d => d.status === 'Available' || d.status === 'Available (Standby)')}
-        availableAmbulances={ambulances.filter(a => a.status === 'Available' || a.status === 'Available (Standby)')}
-        onAccept={(id, driverId, ambId) => handleRespondToSOS(id, 'ACCEPTED', driverId, ambId)}
+        availableDrivers={drivers.filter(d => d.status === 'Available')}
+        availableDoctors={doctors.filter(d => d.status === 'Available')}
+        isSubmitting={sosSubmitting}
+        onAccept={(id, driverId, doctorId) => handleRespondToSOS(id, 'ACCEPTED', driverId, doctorId)}
         onReject={(id) => handleRespondToSOS(id, 'REJECTED')}
       />
     </div>

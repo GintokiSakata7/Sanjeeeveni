@@ -8,6 +8,7 @@ import '../../services/preferences_service.dart';
 import '../../widgets/app_toast.dart';
 import '../../widgets/emergency_alarm_dialog.dart';
 import '../auth/unified_login_screen.dart';
+import '../../services/websocket_service.dart';
 
 class DoctorDashboardScreen extends StatefulWidget {
   final String doctorName;
@@ -35,20 +36,35 @@ class _DoctorDashboardScreenState extends State<DoctorDashboardScreen> {
   DateTime? _lastBackPressTime;
   Timer? _pollTimer;
   bool _isAlarmShowing = false;
+  StreamSubscription? _wsSubscription;
 
   @override
   void initState() {
     super.initState();
     _fetchDoctorCases();
-    // Poll for assigned cases every 3 seconds
+    // Poll for assigned cases every 3 seconds as a fallback
     _pollTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
       _fetchDoctorCases();
     });
+    
+    // Connect to WebSocket for instant pushes
+    final doctorId = _prefs.loggedInUserId;
+    if (doctorId.isNotEmpty) {
+      WebSocketService().connect(doctorId);
+      _wsSubscription = WebSocketService().messageStream.listen((message) {
+        if (message['type'] == 'NEW_CASE_ASSIGNED') {
+          // Force an immediate refresh to fetch the new case details
+          _fetchDoctorCases();
+        }
+      });
+    }
   }
 
   @override
   void dispose() {
     _pollTimer?.cancel();
+    _wsSubscription?.cancel();
+    WebSocketService().disconnect();
     super.dispose();
   }
 

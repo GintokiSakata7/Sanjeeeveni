@@ -32,6 +32,7 @@ class PreferencesService extends ChangeNotifier {
   String _licenseNumber = '';
   String _location = '';
   String _roleType = '';
+  String _assignedAmbulanceId = '';
 
   // Getters
   bool get isOnboardingCompleted => _isOnboardingCompleted;
@@ -55,6 +56,7 @@ class PreferencesService extends ChangeNotifier {
   String get licenseNumber => _licenseNumber;
   String get location => _location;
   String get roleType => _roleType;
+  String get assignedAmbulanceId => _assignedAmbulanceId;
 
   /// Must be called once before app starts (in main.dart)
   Future<void> loadFromDisk() async {
@@ -75,6 +77,7 @@ class PreferencesService extends ChangeNotifier {
     _licenseNumber = _prefs!.getString('license_number') ?? '';
     _location = _prefs!.getString('location') ?? '';
     _roleType = _prefs!.getString('role_type') ?? '';
+    _assignedAmbulanceId = _prefs!.getString('assigned_ambulance_id') ?? '';
     notifyListeners();
   }
 
@@ -135,6 +138,7 @@ class PreferencesService extends ChangeNotifier {
     String licenseNumber = '',
     String location = '',
     String roleType = '',
+    String assignedAmbulanceId = '',
   }) async {
     _isLoggedIn = true;
     _loggedInRole = role;
@@ -151,6 +155,7 @@ class PreferencesService extends ChangeNotifier {
     _licenseNumber = licenseNumber;
     _location = location;
     _roleType = roleType;
+    _assignedAmbulanceId = assignedAmbulanceId;
 
     await _prefs?.setBool('is_logged_in', true);
     await _prefs?.setString('logged_in_role', role);
@@ -167,6 +172,7 @@ class PreferencesService extends ChangeNotifier {
     await _prefs?.setString('license_number', licenseNumber);
     await _prefs?.setString('location', location);
     await _prefs?.setString('role_type', roleType);
+    await _prefs?.setString('assigned_ambulance_id', assignedAmbulanceId);
     notifyListeners();
   }
 

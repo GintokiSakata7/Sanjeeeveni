@@ -9,6 +9,10 @@ from database import get_supabase
 from supabase import Client
 import math
 
+# Import WebSocket manager for real-time status sync
+from app.ws_manager import manager
+import asyncio
+
 router = APIRouter(prefix="/routing", tags=["SOS Emergency Routing"])
 
 class SOSSendPayload(BaseModel):
@@ -24,7 +28,7 @@ class SOSResponsePayload(BaseModel):
 
 class AssignDriverPayload(BaseModel):
     driver_id: str
-    ambulance_id: str
+    ambulance_id: Optional[str] = None  # Optional — auto-resolved from driver's assigned ambulance
 
 class AssignDoctorPayload(BaseModel):
     doctor_id: str
@@ -86,6 +90,17 @@ def get_pending_sos_requests(hospital_id: str, db: Client = Depends(get_supabase
     except Exception as e:
         return _net_err(e)
 
+@router.get("/active/{hospital_id}")
+def get_active_sos(hospital_id: str, db: Client = Depends(get_supabase)):
+    """Fetch all active (accepted/ongoing) SOS requests for a hospital."""
+    if not db:
+        return JSONResponse(status_code=503, content={"detail": "Supabase client not initialized."})
+    try:
+        res = db.table("sos_requests").select("*").eq("hospital_id", hospital_id).in_("status", ["ACCEPTED", "DOCTOR_ACCEPTED", "DISPATCHED", "IN_TRANSIT", "ARRIVED"]).order("updated_at", desc=True).execute()
+        return res.data
+    except Exception as e:
+        return _net_err(e)
+
 @router.post("/respond/{sos_id}")
 def respond_to_sos(sos_id: str, payload: SOSResponsePayload, db: Client = Depends(get_supabase)):
     """Called by the Hospital Dashboard to accept/reject an SOS."""
@@ -97,8 +112,17 @@ def respond_to_sos(sos_id: str, payload: SOSResponsePayload, db: Client = Depend
             raise HTTPException(status_code=404, detail="SOS request not found.")
 
         sos_request = res.data[0]
-        if sos_request["status"] not in ["PENDING", "ACCEPTED"]:
-            raise HTTPException(status_code=400, detail=f"SOS request is currently in status '{sos_request['status']}' and cannot be reassigned.")
+        current_status = sos_request["status"]
+        
+        # Idempotency: if already in the target status, just return success
+        if current_status == payload.status:
+            return {"message": f"SOS request already {payload.status}", "sos_id": sos_id}
+        
+        # Reject/REJECTED can come from PENDING or ACCEPTED states
+        # Accept can only come from PENDING (or re-accepting from ACCEPTED is allowed above)
+        terminal_statuses = ["COMPLETED", "CANCELLED", "DOCTOR_ACCEPTED", "DISPATCHED", "IN_TRANSIT", "ARRIVED"]
+        if current_status in terminal_statuses and payload.status == "PENDING":
+            raise HTTPException(status_code=400, detail=f"SOS request is currently in status '{current_status}' and cannot be reverted.")
 
         update_data = {"status": payload.status, "updated_at": datetime.utcnow().isoformat()}
         db.table("sos_requests").update(update_data).eq("id", sos_id).execute()
@@ -113,6 +137,35 @@ def respond_to_sos(sos_id: str, payload: SOSResponsePayload, db: Client = Depend
                 "created_at": datetime.utcnow().isoformat()
             }
             db.table("sos_timelines").insert(tl).execute()
+            
+            # Send real-time update to the patient's tracker
+            try:
+                asyncio.run(manager.broadcast_to_sos(sos_id, {
+                    "type": "STATUS_UPDATE",
+                    "status": "ACCEPTED",
+                    "message": tl["message"]
+                }))
+            except Exception:
+                pass
+
+        elif payload.status == "REJECTED":
+            tl = {
+                "sos_id": sos_id,
+                "event_type": "HOSPITAL_REJECTED",
+                "actor_role": "hospital",
+                "actor_id": sos_request["hospital_id"],
+                "message": "Hospital has rejected the emergency request. Searching for another hospital.",
+                "created_at": datetime.utcnow().isoformat()
+            }
+            db.table("sos_timelines").insert(tl).execute()
+            try:
+                asyncio.run(manager.broadcast_to_sos(sos_id, {
+                    "type": "STATUS_UPDATE",
+                    "status": "REJECTED",
+                    "message": tl["message"]
+                }))
+            except Exception:
+                pass
 
         return {"message": f"SOS request {payload.status}", "sos_id": sos_id}
     except HTTPException:
@@ -131,31 +184,52 @@ def assign_driver(sos_id: str, payload: AssignDriverPayload, db: Client = Depend
 
         d_res = db.table("drivers").select("*").eq("id", payload.driver_id).execute()
         driver = d_res.data[0] if d_res.data else None
+        if not driver:
+            raise HTTPException(status_code=404, detail="Driver not found")
 
-        a_res = db.table("ambulances").select("*").eq("id", payload.ambulance_id).execute()
-        ambulance = a_res.data[0] if a_res.data else None
-
-        if not driver or not ambulance:
-            raise HTTPException(status_code=404, detail="Driver or Ambulance not found")
+        # Auto-resolve ambulance: check if an ambulance is assigned to this driver
+        ambulance = None
+        if payload.ambulance_id:
+            a_res = db.table("ambulances").select("*").eq("id", payload.ambulance_id).execute()
+            ambulance = a_res.data[0] if a_res.data else None
+        else:
+            # Look up ambulance assigned to this driver
+            a_res = db.table("ambulances").select("*").eq("assigned_driver_id", payload.driver_id).execute()
+            ambulance = a_res.data[0] if a_res.data else None
 
         update_data = {
             "assigned_driver_id": driver["id"],
             "assigned_driver_name": driver.get("name", "Unknown"),
-            "assigned_ambulance_id": ambulance["id"],
-            "assigned_ambulance_reg": ambulance.get("vehicle_registration", "Unknown"),
             "driver_status": "ASSIGNED",
             "updated_at": datetime.utcnow().isoformat()
         }
+        if ambulance:
+            update_data["assigned_ambulance_id"] = ambulance["id"]
+            update_data["assigned_ambulance_reg"] = ambulance.get("vehicle_registration", "Unknown")
+
         db.table("sos_requests").update(update_data).eq("id", sos_id).execute()
 
+        amb_info = f" with Ambulance {ambulance.get('vehicle_registration')}" if ambulance else ""
         tl = {
             "sos_id": sos_id,
             "event_type": "DRIVER_ASSIGNED",
             "actor_role": "hospital",
-            "message": f"Ambulance {ambulance.get('vehicle_registration')} with Driver {driver.get('name')} assigned.",
+            "message": f"Driver {driver.get('name')} assigned{amb_info}.",
             "created_at": datetime.utcnow().isoformat()
         }
         db.table("sos_timelines").insert(tl).execute()
+        
+        # Send real-time update to the patient's tracker
+        try:
+            asyncio.run(manager.broadcast_to_sos(sos_id, {
+                "type": "DRIVER_DISPATCHED",
+                "driver_name": driver.get('name'),
+                "ambulance_reg": ambulance.get('vehicle_registration') if ambulance else 'N/A',
+                "message": tl["message"]
+            }))
+        except Exception:
+            pass
+        
         return {"message": "Driver assigned successfully", "sos_id": sos_id}
     except HTTPException:
         raise
@@ -193,6 +267,29 @@ def assign_doctor(sos_id: str, payload: AssignDoctorPayload, db: Client = Depend
             "created_at": datetime.utcnow().isoformat()
         }
         db.table("sos_timelines").insert(tl).execute()
+        
+        # Send real-time update to the patient's tracker
+        try:
+            asyncio.run(manager.broadcast_to_sos(sos_id, {
+                "type": "DOCTOR_ASSIGNED",
+                "doctor_name": doctor.get('name'),
+                "doctor_specialty": doctor.get('specialization', 'Emergency Physician'),
+                "message": tl["message"]
+            }))
+        except Exception:
+            pass
+        
+        # Send push notification via WebSocket to the assigned doctor
+        try:
+            asyncio.run(manager.broadcast_to_doctor(doctor["id"], {
+                "type": "NEW_CASE_ASSIGNED",
+                "sos_id": sos_id,
+                "patient_name": res.data[0].get("patient_name", "Unknown Patient"),
+                "severity": res.data[0].get("triage_urgency", "CRITICAL")
+            }))
+        except Exception:
+            pass
+        
         return {"message": "Doctor assigned successfully", "sos_id": sos_id}
     except HTTPException:
         raise
@@ -221,6 +318,16 @@ def driver_accept_sos(sos_id: str, db: Client = Depends(get_supabase)):
             "created_at": datetime.utcnow().isoformat()
         }
         db.table("sos_timelines").insert(tl).execute()
+        
+        # Send real-time update to the patient's tracker
+        try:
+            asyncio.run(manager.broadcast_to_sos(sos_id, {
+                "type": "DRIVER_EN_ROUTE",
+                "message": tl["message"]
+            }))
+        except Exception:
+            pass
+        
         return {"message": "Driver accepted mission", "sos_id": sos_id}
     except HTTPException:
         raise
@@ -321,6 +428,9 @@ def check_sos_status(sos_id: str, db: Client = Depends(get_supabase)):
         return {
             "sos_id": sos_request["id"],
             "status": sos_request["status"],
+            "doctor_status": sos_request.get("doctor_status"),
+            "assigned_doctor_name": sos_request.get("assigned_doctor_name"),
+            "assigned_doctor_id": sos_request.get("assigned_doctor_id"),
             "assigned_driver_name": sos_request.get("assigned_driver_name"),
             "assigned_ambulance_reg": sos_request.get("assigned_ambulance_reg"),
             "driver_status": sos_request.get("driver_status")
@@ -329,3 +439,43 @@ def check_sos_status(sos_id: str, db: Client = Depends(get_supabase)):
         raise
     except Exception as e:
         return _net_err(e)
+
+@router.post("/initiate-call/{sos_id}")
+async def initiate_call(sos_id: str, db: Client = Depends(get_supabase)):
+    """Called by the Hospital Dashboard 'Contact Doctor' button. 
+    Sends an INITIATE_CALL WebSocket message to the patient's browser to start the WebRTC call."""
+    if not db:
+        return JSONResponse(status_code=503, content={"detail": "Supabase client not initialized."})
+    try:
+        res = db.table("sos_requests").select("assigned_doctor_id, assigned_doctor_name").eq("id", sos_id).execute()
+        if not res.data:
+            raise HTTPException(status_code=404, detail="SOS request not found.")
+        
+        sos = res.data[0]
+        doctor_id = sos.get("assigned_doctor_id")
+        doctor_name = sos.get("assigned_doctor_name", "Your Doctor")
+        
+        if not doctor_id:
+            raise HTTPException(status_code=400, detail="No doctor assigned to this SOS request.")
+        
+        # Push INITIATE_CALL to the patient's WebSocket so IncomingCallModal appears
+        await manager.broadcast_to_sos(sos_id, {
+            "type": "INITIATE_CALL",
+            "doctor_id": doctor_id,
+            "name": doctor_name,
+            "sdp": None  # Signaling will be exchanged over WS after patient accepts
+        })
+        
+        # Also notify the doctor that hospital is trying to connect
+        await manager.broadcast_to_doctor(doctor_id, {
+            "type": "CALL_REQUESTED",
+            "sos_id": sos_id,
+            "message": "Hospital admin is connecting you to the patient."
+        })
+        
+        return {"success": True, "message": f"Call initiated for SOS {sos_id}"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        return _net_err(e)
+

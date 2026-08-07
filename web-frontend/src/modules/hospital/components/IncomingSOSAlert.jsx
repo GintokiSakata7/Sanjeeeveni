@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
-import { AlertTriangle, MapPin, Activity, Stethoscope, User, Image as ImageIcon, Check, X } from 'lucide-react';
+import { AlertTriangle, MapPin, Activity, Stethoscope, User, Image as ImageIcon, Check, X, Car, Loader } from 'lucide-react';
 
-export default function IncomingSOSAlert({ sosRequest, availableDrivers, availableAmbulances, onAccept, onReject }) {
+export default function IncomingSOSAlert({ sosRequest, availableDrivers, availableDoctors, onAccept, onReject, isSubmitting }) {
   const [selectedDriverId, setSelectedDriverId] = useState('');
-  const [selectedAmbulanceId, setSelectedAmbulanceId] = useState('');
+  const [selectedDoctorId, setSelectedDoctorId] = useState('');
 
   if (!sosRequest) return null;
 
+  const canSubmit = selectedDriverId && selectedDoctorId && !isSubmitting;
+
   return (
-    <div className="hms-modal-overlay" style={{ zIndex: 9999, backgroundColor: 'rgba(255, 0, 0, 0.1)' }}>
-      <div className="hms-modal-card" style={{ border: '2px solid #ef4444', boxShadow: '0 0 40px rgba(239, 68, 68, 0.3)', maxWidth: '600px' }}>
+    <div className="hms-modal-overlay" style={{ zIndex: 9999, backgroundColor: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}>
+      <div className="hms-modal-card" style={{ border: '2px solid #ef4444', boxShadow: '0 0 60px rgba(239, 68, 68, 0.4)', maxWidth: '600px', animation: 'pulse-border 2s infinite' }}>
         
         <div className="modal-head" style={{ borderBottom: '1px solid rgba(239, 68, 68, 0.3)', backgroundColor: 'rgba(239, 68, 68, 0.1)' }}>
           <h3 style={{ color: '#ef4444', display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -26,7 +28,9 @@ export default function IncomingSOSAlert({ sosRequest, availableDrivers, availab
                 <Activity size={16} color="#fb923c" />
                 <span style={{ fontSize: '12px' }}>Triage Urgency</span>
               </div>
-              <strong style={{ color: '#fff', fontSize: '16px' }}>{sosRequest.triage_urgency}</strong>
+              <strong style={{ color: sosRequest.triage_urgency?.includes('RED') ? '#ef4444' : '#facc15', fontSize: '16px' }}>
+                {sosRequest.triage_urgency}
+              </strong>
             </div>
 
             <div style={{ backgroundColor: '#0f1523', padding: '15px', borderRadius: '8px', border: '1px solid #1e293b' }}>
@@ -58,65 +62,87 @@ export default function IncomingSOSAlert({ sosRequest, availableDrivers, availab
             )}
           </div>
           
+          {/* ASSIGN DRIVER */}
           <div className="form-field" style={{ marginBottom: '15px' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#94a3b8' }}>
-              <User size={16} color="#2dd4bf" />
-              Assign Driver (Primary)
+              <Car size={16} color="#2dd4bf" />
+              Assign Driver
+              {availableDrivers.length === 0 && (
+                <span style={{ fontSize: '11px', color: '#ef4444', marginLeft: '8px' }}>⚠ No available drivers</span>
+              )}
             </label>
             <select
               value={selectedDriverId}
               onChange={(e) => setSelectedDriverId(e.target.value)}
-              style={{ width: '100%', backgroundColor: '#1a2332', color: 'white', padding: '10px', borderRadius: '8px', border: '1px solid #334155' }}
+              disabled={isSubmitting}
+              style={{ width: '100%', backgroundColor: '#1a2332', color: 'white', padding: '10px', borderRadius: '8px', border: `1px solid ${selectedDriverId ? '#2dd4bf' : '#334155'}` }}
             >
               <option value="">-- Select available driver --</option>
               {availableDrivers.map(drv => (
                 <option key={drv.id} value={drv.id}>
-                  {drv.name}
+                  🚑 {drv.name} ({drv.contact_number || drv.email})
                 </option>
               ))}
             </select>
           </div>
 
+          {/* ASSIGN DOCTOR */}
           <div className="form-field">
             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#94a3b8' }}>
               <Stethoscope size={16} color="#fb7185" />
-              Assign Ambulance
+              Assign Doctor
+              {availableDoctors.length === 0 && (
+                <span style={{ fontSize: '11px', color: '#ef4444', marginLeft: '8px' }}>⚠ No available doctors</span>
+              )}
             </label>
             <select
-              value={selectedAmbulanceId}
-              onChange={(e) => setSelectedAmbulanceId(e.target.value)}
-              style={{ width: '100%', backgroundColor: '#1a2332', color: 'white', padding: '10px', borderRadius: '8px', border: '1px solid #334155' }}
+              value={selectedDoctorId}
+              onChange={(e) => setSelectedDoctorId(e.target.value)}
+              disabled={isSubmitting}
+              style={{ width: '100%', backgroundColor: '#1a2332', color: 'white', padding: '10px', borderRadius: '8px', border: `1px solid ${selectedDoctorId ? '#fb7185' : '#334155'}` }}
             >
-              <option value="">-- Select available ambulance --</option>
-              {availableAmbulances.map(amb => (
-                <option key={amb.id} value={amb.id}>
-                  {amb.vehicle_registration} ({amb.vehicle_type})
+              <option value="">-- Select available doctor --</option>
+              {availableDoctors.map(doc => (
+                <option key={doc.id} value={doc.id}>
+                  👨‍⚕️ Dr. {doc.name} — {doc.specialization}
                 </option>
               ))}
             </select>
           </div>
+
+          {/* Validation hint */}
+          {(!selectedDriverId || !selectedDoctorId) && !isSubmitting && (
+            <p style={{ fontSize: '12px', color: '#64748b', marginTop: '10px', textAlign: 'center' }}>
+              Select both a driver and a doctor to accept the emergency.
+            </p>
+          )}
         </div>
 
         <div className="modal-actions" style={{ padding: '0 20px 20px 20px' }}>
           <button
-            onClick={() => onReject(sosRequest.id)}
+            onClick={() => !isSubmitting && onReject(sosRequest.id)}
+            disabled={isSubmitting}
             className="btn-sec"
-            style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center', opacity: isSubmitting ? 0.5 : 1 }}
           >
             <X size={18} /> REJECT
           </button>
           <button
-            onClick={() => onAccept(sosRequest.id, selectedDriverId, selectedAmbulanceId)}
-            disabled={!selectedDriverId || !selectedAmbulanceId}
+            onClick={() => canSubmit && onAccept(sosRequest.id, selectedDriverId, selectedDoctorId)}
+            disabled={!canSubmit}
             className="btn-add-primary"
             style={{ 
               display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center', 
-              backgroundColor: '#ef4444', 
-              opacity: (!selectedDriverId || !selectedAmbulanceId) ? 0.5 : 1,
-              cursor: (!selectedDriverId || !selectedAmbulanceId) ? 'not-allowed' : 'pointer'
+              backgroundColor: canSubmit ? '#ef4444' : '#374151', 
+              opacity: canSubmit ? 1 : 0.5,
+              cursor: canSubmit ? 'pointer' : 'not-allowed'
             }}
           >
-            <Check size={18} /> ACCEPT & DISPATCH
+            {isSubmitting ? (
+              <><Loader size={18} className="animate-spin" /> PROCESSING...</>
+            ) : (
+              <><Check size={18} /> ACCEPT &amp; DISPATCH</>
+            )}
           </button>
         </div>
 

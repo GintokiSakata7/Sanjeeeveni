@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
+import '../../services/webrtc_call_service.dart';
 
 class ActiveCallScreen extends StatefulWidget {
   final String contactName;
@@ -27,15 +29,38 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
   int _callSeconds = 0;
   Timer? _timer;
   late AnimationController _waveController;
+  final RTCVideoRenderer _remoteRenderer = RTCVideoRenderer();
 
   @override
   void initState() {
     super.initState();
     _startTimer();
+    _remoteRenderer.initialize();
     _waveController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     )..repeat(reverse: true);
+    
+    // WebRTC Integration
+    WebRTCCallService().onRemoteStreamAdd = (stream) {
+      if (mounted) {
+        setState(() {
+          _remoteRenderer.srcObject = stream;
+        });
+      }
+    };
+    WebRTCCallService().onCallEnded = () {
+      if (mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Call ended by remote party.'),
+            backgroundColor: Color(0xFF334155),
+          ),
+        );
+      }
+    };
+    WebRTCCallService().initiateCall(widget.associatedCaseId);
   }
 
   void _startTimer() {
@@ -58,6 +83,8 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
   void dispose() {
     _timer?.cancel();
     _waveController.dispose();
+    _remoteRenderer.dispose();
+    WebRTCCallService().endCall();
     super.dispose();
   }
 
@@ -247,8 +274,9 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
                         isActive: _isMuted,
                         activeColor: const Color(0xFFEF4444),
                         onTap: () {
+                          final isNowMuted = WebRTCCallService().toggleMute();
                           setState(() {
-                            _isMuted = !_isMuted;
+                            _isMuted = isNowMuted;
                           });
                         },
                       ),
@@ -258,8 +286,9 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
                         isActive: _isSpeakerOn,
                         activeColor: const Color(0xFF0284C7),
                         onTap: () {
+                          final isNowSpeaker = WebRTCCallService().toggleSpeaker();
                           setState(() {
-                            _isSpeakerOn = !_isSpeakerOn;
+                            _isSpeakerOn = isNowSpeaker;
                           });
                         },
                       ),
@@ -282,6 +311,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen>
                   GestureDetector(
                     onTap: () {
                       _timer?.cancel();
+                      WebRTCCallService().endCall();
                       Navigator.of(context).pop();
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
