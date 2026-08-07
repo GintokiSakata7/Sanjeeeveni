@@ -304,7 +304,7 @@ export default function useRadarSearch() {
                 const res = await fetchWithFallback(`/api/v1/routing/status/${sosId}`);
                 if (res.ok) {
                   const data = await res.json();
-                  if (data.status === 'ACCEPTED') {
+                  if (['ACCEPTED', 'DOCTOR_ACCEPTED', 'DISPATCHED', 'IN_TRANSIT', 'ARRIVED'].includes(data.status) || data.assigned_doctor_name || data.assigned_driver_name) {
                     acceptHospital(hospitalId);
                   } else if (data.status === 'REJECTED') {
                     rejectHospital(hospitalId);

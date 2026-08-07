@@ -11,14 +11,15 @@
  */
 
 const IS_DEV = import.meta.env.DEV;
+const RENDER_BASE_URL = "https://sanjeeeveni.onrender.com";
 
-// Once local fails, stay on Render for the session to avoid repeated timeouts
-let preferRender = false;
+// Keep using the server that worked last to avoid repeated timeouts.
+let preferLocal = false;
 
-export const CANDIDATE_BASE_URLS = ["http://localhost:8000", "https://sanjeeeveni.onrender.com"];
+export const CANDIDATE_BASE_URLS = ["https://sanjeeeveni.onrender.com", "http://localhost:8000"];
 
 export function resetWorkingBaseUrl() {
-  preferRender = false;
+  preferLocal = false;
 }
 
 export async function getApiBaseUrl() {
@@ -29,27 +30,20 @@ export async function fetchWithFallback(path, options = {}) {
   let cleanPath = normalizePath(path);
 
   if (!IS_DEV) {
-    // Production: just use relative path directly
-    return fetch(cleanPath, options);
+    return fetch(`${RENDER_BASE_URL}${cleanPath}`, options);
   }
 
-  if (!preferRender) {
-    try {
-      const res = await fetchViaLocal(cleanPath, options);
-      if (res.status === 503 || res.status === 502 || res.status === 504) {
-        console.warn(`[ApiClient] Local DB offline (${res.status}) for ${cleanPath}, switching to Render`);
-        preferRender = true;
-        return await fetchViaRender(cleanPath, options);
-      }
-      return res;
-    } catch (err) {
-      console.warn(`[ApiClient] Local backend unreachable for ${cleanPath}, switching to Render`, err.message);
-      preferRender = true;
+  try {
+    const res = await fetchViaLocal(cleanPath, options);
+    if (res.status >= 500) {
+      console.warn(`[ApiClient] Local returned ${res.status}, trying Render fallback...`);
       return await fetchViaRender(cleanPath, options);
     }
+    return res;
+  } catch (err) {
+    console.warn(`[ApiClient] Local unreachable for ${cleanPath}, trying Render...`, err.message);
+    return await fetchViaRender(cleanPath, options);
   }
-
-  return await fetchViaRender(cleanPath, options);
 }
 
 async function fetchViaLocal(path, options) {

@@ -37,12 +37,6 @@
 
 body {
   background-color: var(--bg-light);
-  background-image: 
-    linear-gradient(to right, rgba(148, 163, 184, 0.08) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(148, 163, 184, 0.08) 1px, transparent 1px),
-    radial-gradient(circle at 10% 10%, rgba(220, 38, 38, 0.05) 0%, transparent 40%),
-    radial-gradient(circle at 90% 90%, rgba(2, 132, 199, 0.04) 0%, transparent 40%);
-  background-size: 28px 28px, 28px 28px, 100% 100%, 100% 100%;
   color: var(--text-main);
   min-height: 100vh;
   padding: 0;
@@ -371,9 +365,7 @@ body {
 .map-hud-card {
   position: relative;
   height: 220px;
-  background: radial-gradient(circle at 50% 50%, #F8FAFC 0%, #E2E8F0 100%),
-              repeating-linear-gradient(0deg, transparent, transparent 19px, rgba(148, 163, 184, 0.15) 20px),
-              repeating-linear-gradient(90deg, transparent, transparent 19px, rgba(148, 163, 184, 0.15) 20px);
+  background: #F8FAFC;
   border: 1px solid var(--border-light);
   border-radius: 20px;
   padding: 16px 20px;
@@ -3903,27 +3895,26 @@ body {
 
 /* Radar Canvas Wrapper (Bottom Right of Orchestrator Panel) */
 .radar-canvas-wrapper {
-  margin-top: 20px;
-  padding: 20px;
+  margin-top: 0;
+  padding: 24px;
   background: #FFFFFF;
   border-radius: 20px;
   border: 1px solid var(--border-light);
-  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.04);
+  box-shadow: var(--shadow-sm);
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 400px;
 }
 
-/* Hospital Response Panel (Left Side) */
-.hospital-response-panel {
-  background: #FFFFFF;
-  border: 1px solid var(--border-light);
-  border-radius: 20px;
-  padding: 20px;
-  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.04);
+/* Hospital/Helper Response Panels */
+.hospital-response-panel, .helper-response-panel {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  height: 100%;
 }
 
 /* Status Bar */
@@ -4347,9 +4338,9 @@ body {
 
 
 
-.radar-and-hospitals-section { display: flex; gap: 20px; align-items: flex-start; justify-content: center; width: 100%; }
+.radar-and-hospitals-section { display: flex; gap: 24px; align-items: stretch; justify-content: center; width: 100%; max-width: 1000px; margin: 0 auto; }
 
-.hospital-panel-wrapper, .helper-panel-wrapper { background: var(--surface-light); border-radius: 20px; padding: 24px; box-shadow: var(--shadow-sm); display: flex; flex-direction: column; gap: 16px; max-width: 320px; border: 1px solid var(--border-light); }
+.hospital-panel-wrapper, .helper-panel-wrapper { background: var(--surface-light); border-radius: 20px; padding: 24px; box-shadow: var(--shadow-sm); display: flex; flex-direction: column; gap: 16px; width: 100%; max-width: 340px; border: 1px solid var(--border-light); }
 
 .helper-cards-scroll { display: flex; flex-direction: column; gap: 12px; overflow-y: auto; max-height: 400px; padding-right: 8px; }
 

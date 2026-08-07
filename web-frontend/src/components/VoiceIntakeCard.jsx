@@ -105,19 +105,31 @@ export default function VoiceIntakeCard({
 
           <div style={{ width: '100%', marginTop: '14px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-muted)', fontWeight: '700' }}>
-              <span>ACCUMULATED SPEECH TRANSCRIPT / AUDIO PREVIEW:</span>
-              {transcript && (
+              <span>{selectedLang === "auto" ? "Live transcription disabled in Auto-Detect" : "What you said:"}</span>
+              {transcript && selectedLang !== "auto" && (
                 <button className="clear-link" onClick={handleClear}>
                   <RotateCcw size={12} style={{ display: 'inline' }} /> Clear
                 </button>
               )}
             </div>
-            <textarea
-              className="hud-textarea"
-              value={transcript}
-              onChange={(e) => setTranscript(e.target.value)}
-              placeholder="Spoken words stream here in real-time. High-precision Whisper v3 will process complete audio upon transmission..."
-            />
+            
+            {selectedLang === "auto" ? (
+              <div className="transcript-box" style={{ minHeight: '60px', opacity: 0.7, padding: '10px', background: 'var(--bg-subtle)', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
+                <span className="placeholder" style={{ fontSize: '12px', lineHeight: '1.5' }}>
+                  Voice is being securely recorded. The AI will automatically detect your language and transcribe it upon transmitting the SOS.
+                  <br/><br/>
+                  <i>(Select a specific language from the dropdown above if you want to see a live text preview here).</i>
+                </span>
+              </div>
+            ) : (
+              <textarea
+                className="hud-textarea"
+                value={transcript}
+                onChange={(e) => setTranscript(e.target.value)}
+                placeholder="Your words will appear here as you speak..."
+                style={{ marginTop: '8px' }}
+              />
+            )}
           </div>
         </div>
       ) : (

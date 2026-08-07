@@ -71,8 +71,9 @@ export default function CitizenSosPage({
   // Web Speech API: Real-Time Instant Speech-To-Text Streaming
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognition = null;
     if (SpeechRecognition) {
-      const recognition = new SpeechRecognition();
+      recognition = new SpeechRecognition();
       recognition.continuous = true;
       recognition.interimResults = true;
       recognition.lang = selectedLang === "auto" ? "en-IN" : selectedLang;
@@ -106,6 +107,12 @@ export default function CitizenSosPage({
 
       recognitionRef.current = recognition;
     }
+
+    return () => {
+      if (recognition) {
+        try { recognition.stop(); } catch(e) {}
+      }
+    };
   }, [selectedLang]);
 
   // Start MediaRecorder (Audio Binary Capture for Groq Whisper v3)
@@ -396,8 +403,9 @@ export default function CitizenSosPage({
           {showRadarSection && (
             <div className="radar-and-hospitals-section">
               {/* Hospital Response Panel — Left beside the radar */}
-              <div className="hospital-panel-wrapper">
-                <HospitalResponsePanel
+              {(radar.isSearchActive || radar.discoveredHospitals.length > 0 || radar.finalHospital) && (
+                <div className="hospital-panel-wrapper">
+                  <HospitalResponsePanel
                   discoveredHospitals={radar.discoveredHospitals}
                   responses={radar.responses}
                   onAccept={radar.acceptHospital}
@@ -411,7 +419,8 @@ export default function CitizenSosPage({
                   rejectedCount={radar.rejectedCount}
                   notifications={radar.notifications}
                 />
-              </div>
+                </div>
+              )}
 
               {/* Radar Canvas — Middle */}
               <div className="radar-canvas-wrapper">
@@ -435,8 +444,9 @@ export default function CitizenSosPage({
               </div>
 
               {/* Helper Response Panel — Right beside the radar */}
-              <div className="helper-panel-wrapper">
-                <HelperResponsePanel
+              {(helperSearch.isSearchActive || helperSearch.discoveredHelpers.length > 0 || helperSearch.finalHelper) && (
+                <div className="helper-panel-wrapper">
+                  <HelperResponsePanel
                   discoveredHelpers={helperSearch.discoveredHelpers}
                   responses={helperSearch.responses}
                   onAccept={helperSearch.acceptHelper}
@@ -450,7 +460,8 @@ export default function CitizenSosPage({
                   rejectedCount={helperSearch.rejectedCount}
                   notifications={helperSearch.notifications}
                 />
-              </div>
+                </div>
+              )}
             </div>
           )}
         </div>

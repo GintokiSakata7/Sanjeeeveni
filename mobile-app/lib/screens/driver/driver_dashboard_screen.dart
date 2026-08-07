@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
@@ -9,6 +11,7 @@ import '../../services/preferences_service.dart';
 import '../../widgets/app_toast.dart';
 import '../../widgets/live_tracker_card.dart';
 import '../auth/unified_login_screen.dart';
+import '../../services/websocket_service.dart';
 
 class DriverDashboardScreen extends StatefulWidget {
   final String driverName;
@@ -68,17 +71,46 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
     );
   }
 
+  StreamSubscription? _wsSubscription;
+
   @override
   void initState() {
     super.initState();
     _activeCase = _createDefaultCase();
     _loadLiveDriverCase();
     _fetchDriverGps();
+    
+    final driverId = _prefs.loggedInUserId;
+    if (driverId.isNotEmpty) {
+      WebSocketService().connect(driverId);
+      _wsSubscription = WebSocketService().messageStream.listen((message) {
+        if (message['type'] == 'NEW_DRIVER_ASSIGNMENT') {
+          _loadLiveDriverCase();
+          NotificationService.showInAppAlert(
+            context,
+            title: '🚨 NEW DISPATCH RECEIVED',
+            message: message['message'] ?? 'You have been assigned a new emergency case.',
+            icon: Icons.notifications_active,
+            backgroundColor: const Color(0xFFDC2626),
+          );
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _wsSubscription?.cancel();
+    // Assuming driver uses same ws as doctor, maybe we shouldn't disconnect if shared, but usually one user per device
+    WebSocketService().disconnect();
+    super.dispose();
   }
 
   Future<void> _loadLiveDriverCase() async {
+    final driverId = _prefs.loggedInUserId;
+    if (driverId.isEmpty) return;
     try {
-      final res = await ApiService().getLiveCases();
+      final res = await ApiService().getDriverAssignedCases(driverId);
       final list = res['cases'] as List? ?? [];
       if (list.isNotEmpty && mounted) {
         setState(() {

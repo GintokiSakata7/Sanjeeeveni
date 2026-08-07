@@ -13,18 +13,7 @@ export default function Header({
         <div className="brand-symbol">🚨</div>
         <div className="brand-title-group">
           <h1>Sanjeevani</h1>
-          <p>AI EMERGENCY RESPONSE ORCHESTRATOR</p>
-        </div>
-      </div>
-
-      {/* Live System Stats Ticker */}
-      <div className="header-ticker font-sans">
-        <div className="ticker-item">
-          <div className="ticker-dot"></div>
-          <span>AI ENGINE ACTIVE</span>
-        </div>
-        <div className="ticker-item">
-          <span>SUPABASE & FASTAPI V2</span>
+          <p>Emergency Help System</p>
         </div>
       </div>
 

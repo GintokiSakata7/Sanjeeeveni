@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Routes, Route, useNavigate, Navigate } from 'react-router-dom';
 import CitizenSosPage from './pages/CitizenSosPage';
 import HospitalLoginPage from './modules/auth/pages/HospitalLoginPage';
 import HospitalRegistrationPage from './modules/hospital/pages/HospitalRegistrationPage';
@@ -7,8 +8,7 @@ import AdminLoginPage from './modules/admin/pages/AdminLoginPage';
 import AdminDashboardPage from './modules/admin/pages/AdminDashboardPage';
 
 export default function App() {
-  // Navigation View State: 'CITIZEN' | 'HOSPITAL_LOGIN' | 'HOSPITAL_REGISTRATION' | 'HOSPITAL_PORTAL' | 'ADMIN_LOGIN' | 'ADMIN_DASHBOARD'
-  const [currentView, setCurrentView] = useState('CITIZEN');
+  const navigate = useNavigate();
   const [selectedLang, setSelectedLang] = useState('auto');
 
   const [hospitalSession, setHospitalSession] = useState(() => {
@@ -32,75 +32,106 @@ export default function App() {
   const handleHospitalLoginSuccess = (sessionData) => {
     setHospitalSession(sessionData);
     localStorage.setItem('sanjeevani_hospital_session', JSON.stringify(sessionData));
-    setCurrentView('HOSPITAL_PORTAL');
+    navigate('/hospital/dashboard');
   };
 
   const handleHospitalLogout = () => {
     localStorage.removeItem('sanjeevani_hospital_session');
     setHospitalSession(null);
-    setCurrentView('CITIZEN');
+    navigate('/');
   };
 
   const handleAdminLoginSuccess = (userData) => {
     setAdminUser(userData);
-    setCurrentView('ADMIN_DASHBOARD');
+    navigate('/admin/dashboard');
   };
 
   const handleAdminLogout = () => {
     localStorage.removeItem('sanjeevani_admin_token');
     localStorage.removeItem('sanjeevani_admin_user');
     setAdminUser(null);
-    setCurrentView('CITIZEN');
+    navigate('/');
   };
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans">
-      {currentView === 'CITIZEN' && (
-        <CitizenSosPage
-          selectedLang={selectedLang}
-          setSelectedLang={setSelectedLang}
-          onOpenHospitalLogin={() => setCurrentView(hospitalSession ? 'HOSPITAL_PORTAL' : 'HOSPITAL_LOGIN')}
-          onOpenAdminLogin={() => setCurrentView(adminUser ? 'ADMIN_DASHBOARD' : 'ADMIN_LOGIN')}
+      <Routes>
+        <Route 
+          path="/" 
+          element={
+            <CitizenSosPage
+              selectedLang={selectedLang}
+              setSelectedLang={setSelectedLang}
+              onOpenHospitalLogin={() => navigate(hospitalSession ? '/hospital/dashboard' : '/hospital/login')}
+              onOpenAdminLogin={() => navigate(adminUser ? '/admin/dashboard' : '/admin/login')}
+            />
+          } 
         />
-      )}
 
-      {currentView === 'HOSPITAL_LOGIN' && (
-        <HospitalLoginPage
-          onBackToCitizen={() => setCurrentView('CITIZEN')}
-          onStartRegistration={() => setCurrentView('HOSPITAL_REGISTRATION')}
-          onHospitalLoginSuccess={handleHospitalLoginSuccess}
+        <Route 
+          path="/hospital/login" 
+          element={
+            <HospitalLoginPage
+              onBackToCitizen={() => navigate('/')}
+              onStartRegistration={() => navigate('/hospital/register')}
+              onHospitalLoginSuccess={handleHospitalLoginSuccess}
+            />
+          } 
         />
-      )}
 
-      {currentView === 'HOSPITAL_REGISTRATION' && (
-        <HospitalRegistrationPage
-          onBackToCitizen={() => setCurrentView('CITIZEN')}
-          onOpenLoginModal={() => setCurrentView('HOSPITAL_LOGIN')}
+        <Route 
+          path="/hospital/register" 
+          element={
+            <HospitalRegistrationPage
+              onBackToCitizen={() => navigate('/')}
+              onOpenLoginModal={() => navigate('/hospital/login')}
+            />
+          } 
         />
-      )}
 
-      {currentView === 'HOSPITAL_PORTAL' && (
-        <HospitalPortalDashboard
-          hospitalSession={hospitalSession}
-          onLogout={handleHospitalLogout}
-          onBackToCitizen={() => setCurrentView('CITIZEN')}
+        <Route 
+          path="/hospital/dashboard" 
+          element={
+            hospitalSession ? (
+              <HospitalPortalDashboard
+                hospitalSession={hospitalSession}
+                onLogout={handleHospitalLogout}
+                onBackToCitizen={() => navigate('/')}
+              />
+            ) : (
+              <Navigate to="/hospital/login" replace />
+            )
+          } 
         />
-      )}
 
-      {currentView === 'ADMIN_LOGIN' && (
-        <AdminLoginPage
-          onAdminLoginSuccess={handleAdminLoginSuccess}
-          onBackToCitizen={() => setCurrentView('CITIZEN')}
+        <Route 
+          path="/admin/login" 
+          element={
+            <AdminLoginPage
+              onAdminLoginSuccess={handleAdminLoginSuccess}
+              onBackToCitizen={() => navigate('/')}
+            />
+          } 
         />
-      )}
 
-      {currentView === 'ADMIN_DASHBOARD' && (
-        <AdminDashboardPage
-          adminUser={adminUser}
-          onLogout={handleAdminLogout}
-          onBackToCitizen={() => setCurrentView('CITIZEN')}
+        <Route 
+          path="/admin/dashboard" 
+          element={
+            adminUser ? (
+              <AdminDashboardPage
+                adminUser={adminUser}
+                onLogout={handleAdminLogout}
+                onBackToCitizen={() => navigate('/')}
+              />
+            ) : (
+              <Navigate to="/admin/login" replace />
+            )
+          } 
         />
-      )}
+        
+        {/* Fallback route */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
     </div>
   );
 }

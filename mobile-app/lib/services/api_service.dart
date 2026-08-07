@@ -210,6 +210,11 @@ class ApiService {
     return _get('/api/v1/mobile/cases/live');
   }
 
+  /// Get real-time emergency cases assigned to a specific driver.
+  Future<Map<String, dynamic>> getDriverAssignedCases(String driverId) async {
+    return _get('/api/v1/mobile/driver/assigned-cases/$driverId');
+  }
+
   /// Get targeted emergency alerts for this helper
   Future<Map<String, dynamic>> getHelperAlerts(String helperId) async {
     return _get('/api/v1/mobile/helper/nearby-alerts/$helperId');

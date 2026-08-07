@@ -52,12 +52,37 @@ def _net_err(e):
         )
     raise HTTPException(status_code=500, detail=str(e))
 
+def _sos_dedupe_key(item: dict):
+    lat = round(float(item.get("citizen_lat") or 0), 4)
+    lng = round(float(item.get("citizen_lng") or 0), 4)
+    transcript = (item.get("transcript") or "").strip().lower()
+    return (lat, lng, transcript)
+
 @router.post("/send", status_code=status.HTTP_201_CREATED)
 def send_sos_to_hospital(payload: SOSSendPayload, db: Client = Depends(get_supabase)):
     """Called by the Citizen Frontend when the radar discovers a hospital."""
     if not db:
         return JSONResponse(status_code=503, content={"detail": "Supabase client not initialized."})
     try:
+        existing = db.table("sos_requests").select("*") \
+            .eq("hospital_id", payload.hospital_id) \
+            .eq("transcript", payload.transcript) \
+            .in_("status", ["PENDING", "ACCEPTED", "DOCTOR_ACCEPTED", "DISPATCHED", "IN_TRANSIT", "ARRIVED"]) \
+            .order("created_at", desc=True) \
+            .limit(10) \
+            .execute()
+        for item in existing.data or []:
+            same_location = (
+                abs(float(item.get("citizen_lat", 0)) - payload.citizen_lat) < 0.0005 and
+                abs(float(item.get("citizen_lng", 0)) - payload.citizen_lng) < 0.0005
+            )
+            if same_location:
+                return {
+                    "sos_id": item["id"],
+                    "message": "Existing open SOS request reused.",
+                    "status": item.get("status", "PENDING")
+                }
+
         sos_id = f"SOS-{uuid.uuid4().hex[:8].upper()}"
         now_iso = datetime.utcnow().isoformat()
         sos_request = {
@@ -85,8 +110,25 @@ def get_pending_sos_requests(hospital_id: str, db: Client = Depends(get_supabase
     if not db:
         return JSONResponse(status_code=503, content={"detail": "Supabase client not initialized."})
     try:
+        active_res = db.table("sos_requests").select("*") \
+            .eq("hospital_id", hospital_id) \
+            .in_("status", ["ACCEPTED", "DOCTOR_ACCEPTED", "DISPATCHED", "IN_TRANSIT", "ARRIVED"]) \
+            .execute()
+        active_keys = {
+            _sos_dedupe_key(item)
+            for item in (active_res.data or [])
+        }
+
         res = db.table("sos_requests").select("*").eq("hospital_id", hospital_id).eq("status", "PENDING").order("created_at", desc=True).execute()
-        return res.data
+        unique = []
+        seen_keys = set()
+        for item in res.data or []:
+            key = _sos_dedupe_key(item)
+            if key in active_keys or key in seen_keys:
+                continue
+            seen_keys.add(key)
+            unique.append(item)
+        return unique
     except Exception as e:
         return _net_err(e)
 
@@ -107,6 +149,10 @@ def respond_to_sos(sos_id: str, payload: SOSResponsePayload, db: Client = Depend
     if not db:
         return JSONResponse(status_code=503, content={"detail": "Supabase client not initialized."})
     try:
+        payload.status = payload.status.upper().strip()
+        if payload.status not in ["ACCEPTED", "REJECTED"]:
+            raise HTTPException(status_code=400, detail="Status must be ACCEPTED or REJECTED.")
+
         res = db.table("sos_requests").select("*").eq("id", sos_id).execute()
         if not res.data:
             raise HTTPException(status_code=404, detail="SOS request not found.")

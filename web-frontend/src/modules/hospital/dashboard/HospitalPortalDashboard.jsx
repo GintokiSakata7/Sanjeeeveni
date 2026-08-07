@@ -206,8 +206,8 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
   });
 
   // Fetch Telemetry & Entity Data
-  const loadData = async () => {
-    setIsLoading(true);
+  const loadData = async (silent = false) => {
+    if (!silent) setIsLoading(true);
     try {
       const [statsRes, docRes, drvRes, ambRes] = await Promise.all([
         fetchWithFallback(`/api/v1/hms/overview-stats/${hospitalId}`),
@@ -223,12 +223,16 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
     } catch (err) {
       console.warn('HMS Data sync note:', err);
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
   };
 
   useEffect(() => {
     loadData();
+    const intervalId = setInterval(() => {
+      loadData(true);
+    }, 5000);
+    return () => clearInterval(intervalId);
   }, [hospitalId]);
 
   // Create Handlers

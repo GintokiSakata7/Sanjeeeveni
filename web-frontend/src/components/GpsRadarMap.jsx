@@ -20,8 +20,8 @@ export default function GpsRadarMap({ gps }) {
       </div>
 
       <div style={{ fontSize: '11px', color: 'var(--text-muted)', zIndex: 2, display: 'flex', gap: '16px' }}>
-        <span>GEOSPATIAL AI MONITOR</span>
-        <span>GPS ACCURACY: HIGH</span>
+        <span>Location Services</span>
+        <span>Location Found</span>
       </div>
     </div>
   );

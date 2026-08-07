@@ -59,8 +59,8 @@ export default function AdminDashboardPage({ adminUser, onLogout, onBackToCitize
   };
 
   // Fetch telemetry stats & hospital list
-  const fetchData = async () => {
-    setIsLoading(true);
+  const fetchData = async (silent = false) => {
+    if (!silent) setIsLoading(true);
     try {
       const [statsRes, hospRes] = await Promise.all([
         fetchWithFallback('/api/v1/admin/stats'),
@@ -79,12 +79,16 @@ export default function AdminDashboardPage({ adminUser, onLogout, onBackToCitize
     } catch (err) {
       console.warn('Failed to load admin telemetry data:', err);
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchData();
+    fetchData(); // initial loud fetch
+    const intervalId = setInterval(() => {
+      fetchData(true); // silent background fetch
+    }, 5000);
+    return () => clearInterval(intervalId);
   }, []);
 
   // Handle Approve / Reject Actions

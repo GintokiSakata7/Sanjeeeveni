@@ -6,9 +6,9 @@ export default function TriageResultCard({ triageResult, loading, speakFirstAid 
     return (
       <div className="loader-card">
         <div className="spinner-ring"></div>
-        <h3 style={{ fontFamily: 'Outfit', fontSize: '20px' }}>AI Orchestrator Analyzing Triage...</h3>
+        <h3 style={{ fontFamily: 'Outfit', fontSize: '20px' }}>Analyzing your emergency...</h3>
         <p style={{ fontSize: '13px', color: 'var(--text-sub)', marginTop: '4px' }}>
-          Detecting Language • Processing Speech • Classifying Clinical Severity & Category
+          Please wait a moment while we process your request.
         </p>
       </div>
     );
@@ -18,9 +18,9 @@ export default function TriageResultCard({ triageResult, loading, speakFirstAid 
     return (
       <div className="hud-card" style={{ textAlign: 'center', padding: '40px 20px' }}>
         <ShieldAlert size={48} color="var(--text-muted)" style={{ margin: '0 auto 12px auto' }} />
-        <h3 style={{ fontSize: '18px', color: 'var(--text-sub)' }}>AERO AI Intent Classifier Ready</h3>
+        <h3 style={{ fontSize: '18px', color: 'var(--text-sub)' }}>Ready to Help</h3>
         <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '6px' }}>
-          Speak or type emergency details on the left panel to execute real AI language detection, translation, and intent triage.
+          Speak or type your emergency details on the left, and we will get you the right help immediately.
         </p>
       </div>
     );
@@ -52,7 +52,7 @@ export default function TriageResultCard({ triageResult, loading, speakFirstAid 
         <div className="responder-card">
           <div className="responder-icon">🗣️</div>
           <div className="responder-info">
-            <h4>ORIGINAL CALLER INPUT</h4>
+            <h4>WHAT YOU SAID</h4>
             <strong style={{ fontSize: '13px', fontWeight: '600' }}>"{triageResult.input_text}"</strong>
             <p>Detected Language: {triageResult.detected_language}</p>
           </div>
