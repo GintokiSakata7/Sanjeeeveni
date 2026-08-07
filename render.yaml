@@ -17,7 +17,6 @@ services:
   - type: web
     name: sanjeevani-frontend
     env: static
-    plan: free
     rootDir: web-frontend
     buildCommand: "npm install && npm run build"
     staticPublishPath: "dist"
