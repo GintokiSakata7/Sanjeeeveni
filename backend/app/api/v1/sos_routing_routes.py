@@ -9,6 +9,10 @@ from database import get_supabase
 from supabase import Client
 import math
 
+# Import WebSocket manager for real-time status sync
+from app.ws_manager import manager
+import asyncio
+
 router = APIRouter(prefix="/routing", tags=["SOS Emergency Routing"])
 
 class SOSSendPayload(BaseModel):
@@ -113,6 +117,13 @@ def respond_to_sos(sos_id: str, payload: SOSResponsePayload, db: Client = Depend
                 "created_at": datetime.utcnow().isoformat()
             }
             db.table("sos_timelines").insert(tl).execute()
+            
+            # Send real-time update to the patient's tracker
+            asyncio.run(manager.broadcast_to_sos(sos_id, {
+                "type": "STATUS_UPDATE",
+                "status": "ACCEPTED",
+                "message": tl["message"]
+            }))
 
         return {"message": f"SOS request {payload.status}", "sos_id": sos_id}
     except HTTPException:
@@ -156,6 +167,15 @@ def assign_driver(sos_id: str, payload: AssignDriverPayload, db: Client = Depend
             "created_at": datetime.utcnow().isoformat()
         }
         db.table("sos_timelines").insert(tl).execute()
+        
+        # Send real-time update to the patient's tracker
+        asyncio.run(manager.broadcast_to_sos(sos_id, {
+            "type": "DRIVER_DISPATCHED",
+            "driver_name": driver.get('name'),
+            "ambulance_reg": ambulance.get('vehicle_registration'),
+            "message": tl["message"]
+        }))
+        
         return {"message": "Driver assigned successfully", "sos_id": sos_id}
     except HTTPException:
         raise
@@ -193,6 +213,23 @@ def assign_doctor(sos_id: str, payload: AssignDoctorPayload, db: Client = Depend
             "created_at": datetime.utcnow().isoformat()
         }
         db.table("sos_timelines").insert(tl).execute()
+        
+        # Send real-time update to the patient's tracker
+        asyncio.run(manager.broadcast_to_sos(sos_id, {
+            "type": "DOCTOR_ASSIGNED",
+            "doctor_name": doctor.get('name'),
+            "doctor_specialty": doctor.get('specialization', 'Emergency Physician'),
+            "message": tl["message"]
+        }))
+        
+        # Send push notification via WebSocket to the assigned doctor
+        asyncio.run(manager.broadcast_to_doctor(doctor["id"], {
+            "type": "NEW_CASE_ASSIGNED",
+            "sos_id": sos_id,
+            "patient_name": res.data[0].get("patient_name", "Unknown Patient"),
+            "severity": res.data[0].get("triage_urgency", "CRITICAL")
+        }))
+        
         return {"message": "Doctor assigned successfully", "sos_id": sos_id}
     except HTTPException:
         raise
@@ -221,6 +258,13 @@ def driver_accept_sos(sos_id: str, db: Client = Depends(get_supabase)):
             "created_at": datetime.utcnow().isoformat()
         }
         db.table("sos_timelines").insert(tl).execute()
+        
+        # Send real-time update to the patient's tracker
+        asyncio.run(manager.broadcast_to_sos(sos_id, {
+            "type": "DRIVER_EN_ROUTE",
+            "message": tl["message"]
+        }))
+        
         return {"message": "Driver accepted mission", "sos_id": sos_id}
     except HTTPException:
         raise
