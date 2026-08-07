@@ -23,8 +23,9 @@
     <audio id="remoteAudio" autoplay></audio>
 
     <script>
-        // Connect specifically to the main deployed server
-        const wsUrl = 'wss://sanjeeeveni.onrender.com/api/v1/ws/test';
+        // Dynamically connect to the WebSocket on the same host and port
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws`;
         const ws = new WebSocket(wsUrl);
         
         const startCallBtn = document.getElementById('startCall');
