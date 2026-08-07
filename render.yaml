@@ -2,6 +2,7 @@ services:
   - type: web
     name: webrtc-call-module
     env: python
+    plan: free
     rootDir: "test moduleo/websockets"
     buildCommand: "pip install aiohttp"
     startCommand: "python signaling_server.py"
