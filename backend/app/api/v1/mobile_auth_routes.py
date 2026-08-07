@@ -10,9 +10,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
 import uuid
 from datetime import datetime
+import asyncio
 
 from database import get_supabase
 from supabase import Client
+from app.ws_manager import manager
 from app.schemas.mobile_auth_schemas import (
     DoctorLoginRequest, DriverLoginRequest,
     HelperRegisterRequest, HelperLoginRequest,
@@ -306,6 +308,16 @@ def accept_doctor_case(sos_id: str, db: Client = Depends(get_supabase)):
             "created_at": datetime.utcnow().isoformat()
         }
         db.table("sos_timelines").insert(tl).execute()
+        
+        # Real-time push to patient's browser tracker
+        try:
+            asyncio.run(manager.broadcast_to_sos(sos_id, {
+                "type": "STATUS_UPDATE",
+                "status": "DOCTOR_ACCEPTED",
+                "message": "Doctor has accepted your emergency. They are preparing to contact you."
+            }))
+        except Exception:
+            pass
         
         return {"success": True, "message": f"Case {sos_id} accepted. ER Trauma Bay reserved.", "status": "DOCTOR_ACCEPTED"}
     except HTTPException:

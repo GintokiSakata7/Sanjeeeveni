@@ -385,6 +385,9 @@ def check_sos_status(sos_id: str, db: Client = Depends(get_supabase)):
         return {
             "sos_id": sos_request["id"],
             "status": sos_request["status"],
+            "doctor_status": sos_request.get("doctor_status"),
+            "assigned_doctor_name": sos_request.get("assigned_doctor_name"),
+            "assigned_doctor_id": sos_request.get("assigned_doctor_id"),
             "assigned_driver_name": sos_request.get("assigned_driver_name"),
             "assigned_ambulance_reg": sos_request.get("assigned_ambulance_reg"),
             "driver_status": sos_request.get("driver_status")
@@ -393,3 +396,43 @@ def check_sos_status(sos_id: str, db: Client = Depends(get_supabase)):
         raise
     except Exception as e:
         return _net_err(e)
+
+@router.post("/initiate-call/{sos_id}")
+async def initiate_call(sos_id: str, db: Client = Depends(get_supabase)):
+    """Called by the Hospital Dashboard 'Contact Doctor' button. 
+    Sends an INITIATE_CALL WebSocket message to the patient's browser to start the WebRTC call."""
+    if not db:
+        return JSONResponse(status_code=503, content={"detail": "Supabase client not initialized."})
+    try:
+        res = db.table("sos_requests").select("assigned_doctor_id, assigned_doctor_name").eq("id", sos_id).execute()
+        if not res.data:
+            raise HTTPException(status_code=404, detail="SOS request not found.")
+        
+        sos = res.data[0]
+        doctor_id = sos.get("assigned_doctor_id")
+        doctor_name = sos.get("assigned_doctor_name", "Your Doctor")
+        
+        if not doctor_id:
+            raise HTTPException(status_code=400, detail="No doctor assigned to this SOS request.")
+        
+        # Push INITIATE_CALL to the patient's WebSocket so IncomingCallModal appears
+        await manager.broadcast_to_sos(sos_id, {
+            "type": "INITIATE_CALL",
+            "doctor_id": doctor_id,
+            "name": doctor_name,
+            "sdp": None  # Signaling will be exchanged over WS after patient accepts
+        })
+        
+        # Also notify the doctor that hospital is trying to connect
+        await manager.broadcast_to_doctor(doctor_id, {
+            "type": "CALL_REQUESTED",
+            "sos_id": sos_id,
+            "message": "Hospital admin is connecting you to the patient."
+        })
+        
+        return {"success": True, "message": f"Call initiated for SOS {sos_id}"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        return _net_err(e)
+

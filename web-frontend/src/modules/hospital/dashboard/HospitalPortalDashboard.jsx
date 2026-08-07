@@ -23,7 +23,8 @@ import {
   ShieldCheck,
   Eye,
   EyeOff,
-  Lock
+  Lock,
+  Activity
 } from 'lucide-react';
 import {
   PieChart, Pie, Cell, Tooltip as RechartsTooltip, ResponsiveContainer
@@ -546,7 +547,18 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
                                    {(sos.status === 'DOCTOR_ACCEPTED' || sos.doctor_status === 'ACCEPTED') ? '✓ Doctor Accepted' : 'Waiting for Doctor'}
                                 </span>
                                 {(sos.status === 'DOCTOR_ACCEPTED' || sos.doctor_status === 'ACCEPTED') && (
-                                   <button className="btn-sec" style={{ fontSize: '12px', padding: '6px 12px', borderColor: '#34d399', color: '#34d399' }} onClick={() => triggerToast('Connecting to Doctor via VoIP...', 'success')}>
+                                   <button className="btn-sec" style={{ fontSize: '12px', padding: '6px 12px', borderColor: '#34d399', color: '#34d399' }} onClick={async () => {
+                                      try {
+                                         const res = await fetchWithFallback(`/api/v1/routing/initiate-call/${sos.id}`, { method: 'POST' });
+                                         if (res.ok) {
+                                            triggerToast('📞 Call initiated — patient will be notified', 'success');
+                                         } else {
+                                            triggerToast('Failed to initiate call', 'error');
+                                         }
+                                      } catch (err) {
+                                         triggerToast('Network error initiating call', 'error');
+                                      }
+                                   }}>
                                       📞 Contact Doctor
                                    </button>
                                 )}
