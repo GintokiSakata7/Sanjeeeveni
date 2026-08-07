@@ -13,3 +13,14 @@ services:
         sync: false
       - key: GEMINI_API_KEY
         sync: false
+
+  - type: web
+    name: sanjeevani-frontend
+    env: static
+    plan: free
+    rootDir: web-frontend
+    buildCommand: "npm install && npm run build"
+    staticPublishPath: "dist"
+    envVars:
+      - key: VITE_BACKEND_URL
+        value: "https://sanjeeeveni.onrender.com"
