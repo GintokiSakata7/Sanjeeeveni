@@ -21,6 +21,7 @@ class SOSSendPayload(BaseModel):
     citizen_lng: float
     transcript: str
     triage_urgency: str
+    disease: Optional[str] = None
     image_url: Optional[str] = None
 
 class SOSResponsePayload(BaseModel):
@@ -32,6 +33,7 @@ class AssignDriverPayload(BaseModel):
 
 class AssignDoctorPayload(BaseModel):
     doctor_id: str
+    user_id: Optional[str] = None  # Optional citizen/patient identifier
 
 class TimelinePayload(BaseModel):
     event_type: str
@@ -67,6 +69,7 @@ def send_sos_to_hospital(payload: SOSSendPayload, db: Client = Depends(get_supab
             "citizen_lng": payload.citizen_lng,
             "transcript": payload.transcript,
             "triage_urgency": payload.triage_urgency,
+            "disease": payload.disease,
             "image_url": payload.image_url,
             "status": "PENDING",
             "created_at": now_iso,
@@ -173,14 +176,21 @@ def respond_to_sos(sos_id: str, payload: SOSResponsePayload, db: Client = Depend
     except Exception as e:
         return _net_err(e)
 
+
+# ==========================================
+# 🚘 DRIVER TASK ASSIGNMENT (NEW: uses driver_tasks table)
+# ==========================================
+
 @router.post("/assign-driver/{sos_id}")
 def assign_driver(sos_id: str, payload: AssignDriverPayload, db: Client = Depends(get_supabase)):
+    """Hospital assigns a driver to an SOS. Creates a dedicated driver_tasks record."""
     if not db:
         return JSONResponse(status_code=503, content={"detail": "Supabase client not initialized."})
     try:
         res = db.table("sos_requests").select("*").eq("id", sos_id).execute()
         if not res.data:
             raise HTTPException(status_code=404, detail="SOS not found")
+        sos = res.data[0]
 
         d_res = db.table("drivers").select("*").eq("id", payload.driver_id).execute()
         driver = d_res.data[0] if d_res.data else None
@@ -197,6 +207,26 @@ def assign_driver(sos_id: str, payload: AssignDriverPayload, db: Client = Depend
             a_res = db.table("ambulances").select("*").eq("assigned_driver_id", payload.driver_id).execute()
             ambulance = a_res.data[0] if a_res.data else None
 
+        # --- Create dedicated driver_tasks record ---
+        task_id = f"DTASK-{uuid.uuid4().hex[:8].upper()}"
+        driver_task = {
+            "id": task_id,
+            "sos_id": sos_id,
+            "hospital_id": sos["hospital_id"],
+            "driver_id": driver["id"],
+            "ambulance_id": ambulance["id"] if ambulance else None,
+            "status": "PENDING",
+            "citizen_lat": sos["citizen_lat"],
+            "citizen_lng": sos["citizen_lng"],
+            "disease": sos.get("disease"),
+            "transcript": sos.get("transcript"),
+            "triage_urgency": sos.get("triage_urgency"),
+            "created_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.utcnow().isoformat()
+        }
+        db.table("driver_tasks").insert(driver_task).execute()
+
+        # --- Also update sos_requests for backward compatibility ---
         update_data = {
             "assigned_driver_id": driver["id"],
             "assigned_driver_name": driver.get("name", "Unknown"),
@@ -219,6 +249,23 @@ def assign_driver(sos_id: str, payload: AssignDriverPayload, db: Client = Depend
         }
         db.table("sos_timelines").insert(tl).execute()
         
+        # Send real-time push to the driver's mobile app via WebSocket
+        try:
+            asyncio.run(manager.broadcast_to_driver(driver["id"], {
+                "type": "NEW_TASK_ASSIGNED",
+                "task_id": task_id,
+                "sos_id": sos_id,
+                "citizen_lat": sos["citizen_lat"],
+                "citizen_lng": sos["citizen_lng"],
+                "disease": sos.get("disease"),
+                "transcript": sos.get("transcript"),
+                "triage_urgency": sos.get("triage_urgency"),
+                "ambulance_reg": ambulance.get("vehicle_registration") if ambulance else None,
+                "message": tl["message"]
+            }))
+        except Exception:
+            pass
+
         # Send real-time update to the patient's tracker
         try:
             asyncio.run(manager.broadcast_to_sos(sos_id, {
@@ -230,74 +277,16 @@ def assign_driver(sos_id: str, payload: AssignDriverPayload, db: Client = Depend
         except Exception:
             pass
         
-        return {"message": "Driver assigned successfully", "sos_id": sos_id}
+        return {"message": "Driver assigned successfully", "sos_id": sos_id, "task_id": task_id}
     except HTTPException:
         raise
     except Exception as e:
         return _net_err(e)
 
-@router.post("/assign-doctor/{sos_id}")
-def assign_doctor(sos_id: str, payload: AssignDoctorPayload, db: Client = Depends(get_supabase)):
-    if not db:
-        return JSONResponse(status_code=503, content={"detail": "Supabase client not initialized."})
-    try:
-        res = db.table("sos_requests").select("*").eq("id", sos_id).execute()
-        if not res.data:
-            raise HTTPException(status_code=404, detail="SOS not found")
-
-        doc_res = db.table("doctors").select("*").eq("id", payload.doctor_id).execute()
-        if not doc_res.data:
-            raise HTTPException(status_code=404, detail="Doctor not found")
-        doctor = doc_res.data[0]
-
-        sos_update = {
-            "assigned_doctor_id": doctor["id"],
-            "assigned_doctor_name": doctor.get("name", "Unknown"),
-            "doctor_status": "ASSIGNED",
-            "updated_at": datetime.utcnow().isoformat()
-        }
-        db.table("sos_requests").update(sos_update).eq("id", sos_id).execute()
-        db.table("doctors").update({"status": "In Surgery"}).eq("id", payload.doctor_id).execute()
-
-        tl = {
-            "sos_id": sos_id,
-            "event_type": "DOCTOR_ASSIGNED",
-            "actor_role": "hospital",
-            "message": f"Dr. {doctor.get('name')} assigned to emergency.",
-            "created_at": datetime.utcnow().isoformat()
-        }
-        db.table("sos_timelines").insert(tl).execute()
-        
-        # Send real-time update to the patient's tracker
-        try:
-            asyncio.run(manager.broadcast_to_sos(sos_id, {
-                "type": "DOCTOR_ASSIGNED",
-                "doctor_name": doctor.get('name'),
-                "doctor_specialty": doctor.get('specialization', 'Emergency Physician'),
-                "message": tl["message"]
-            }))
-        except Exception:
-            pass
-        
-        # Send push notification via WebSocket to the assigned doctor
-        try:
-            asyncio.run(manager.broadcast_to_doctor(doctor["id"], {
-                "type": "NEW_CASE_ASSIGNED",
-                "sos_id": sos_id,
-                "patient_name": res.data[0].get("patient_name", "Unknown Patient"),
-                "severity": res.data[0].get("triage_urgency", "CRITICAL")
-            }))
-        except Exception:
-            pass
-        
-        return {"message": "Doctor assigned successfully", "sos_id": sos_id}
-    except HTTPException:
-        raise
-    except Exception as e:
-        return _net_err(e)
 
 @router.post("/driver-accept/{sos_id}")
 def driver_accept_sos(sos_id: str, db: Client = Depends(get_supabase)):
+    """Driver accepts the assigned task. Updates both driver_tasks and sos_requests."""
     if not db:
         return JSONResponse(status_code=503, content={"detail": "Supabase client not initialized."})
     try:
@@ -308,6 +297,7 @@ def driver_accept_sos(sos_id: str, db: Client = Depends(get_supabase)):
 
         db.table("sos_requests").update({"driver_status": "EN_ROUTE", "updated_at": datetime.utcnow().isoformat()}).eq("id", sos_id).execute()
 
+        # Note: driver_tasks stays PENDING until completed (accept just means en route)
         tl = {
             "sos_id": sos_id,
             "event_type": "DRIVER_ACCEPTED",
@@ -333,6 +323,285 @@ def driver_accept_sos(sos_id: str, db: Client = Depends(get_supabase)):
         raise
     except Exception as e:
         return _net_err(e)
+
+
+@router.post("/driver-reject/{sos_id}")
+def driver_reject_sos(sos_id: str, db: Client = Depends(get_supabase)):
+    """Driver rejects the assigned task. 
+    Updates driver_tasks.status = 'REJECTED'. Hospital can reassign another driver."""
+    if not db:
+        return JSONResponse(status_code=503, content={"detail": "Supabase client not initialized."})
+    try:
+        res = db.table("sos_requests").select("*").eq("id", sos_id).execute()
+        if not res.data:
+            raise HTTPException(status_code=404, detail="SOS not found")
+        sos = res.data[0]
+        driver_id = sos.get("assigned_driver_id")
+
+        if not driver_id:
+            raise HTTPException(status_code=400, detail="No driver assigned to this SOS.")
+
+        # Update driver_tasks status to REJECTED
+        tasks = db.table("driver_tasks").select("id").eq("sos_id", sos_id).eq("driver_id", driver_id).eq("status", "PENDING").execute().data
+        if tasks:
+            db.table("driver_tasks").update({
+                "status": "REJECTED",
+                "updated_at": datetime.utcnow().isoformat()
+            }).eq("id", tasks[0]["id"]).execute()
+
+        # Reset sos_requests driver assignment so hospital can reassign
+        db.table("sos_requests").update({
+            "assigned_driver_id": None,
+            "assigned_driver_name": None,
+            "assigned_ambulance_id": None,
+            "assigned_ambulance_reg": None,
+            "driver_status": "NOT_ASSIGNED",
+            "updated_at": datetime.utcnow().isoformat()
+        }).eq("id", sos_id).execute()
+
+        tl = {
+            "sos_id": sos_id,
+            "event_type": "DRIVER_REJECTED",
+            "actor_role": "driver",
+            "actor_id": driver_id,
+            "actor_name": sos.get("assigned_driver_name"),
+            "message": f"Driver {sos.get('assigned_driver_name', 'Unknown')} rejected the task. Hospital can reassign.",
+            "created_at": datetime.utcnow().isoformat()
+        }
+        db.table("sos_timelines").insert(tl).execute()
+
+        # Notify patient tracker
+        try:
+            asyncio.run(manager.broadcast_to_sos(sos_id, {
+                "type": "DRIVER_REJECTED",
+                "message": tl["message"]
+            }))
+        except Exception:
+            pass
+
+        return {"message": "Driver rejected task. Hospital can reassign.", "sos_id": sos_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        return _net_err(e)
+
+
+@router.post("/driver-complete/{sos_id}")
+def driver_complete_sos(sos_id: str, db: Client = Depends(get_supabase)):
+    """Driver marks the task as completed. 
+    Updates driver_tasks.status = 'COMPLETED'. Task disappears from mobile app."""
+    if not db:
+        return JSONResponse(status_code=503, content={"detail": "Supabase client not initialized."})
+    try:
+        res = db.table("sos_requests").select("*").eq("id", sos_id).execute()
+        if not res.data:
+            raise HTTPException(status_code=404, detail="SOS not found")
+        sos = res.data[0]
+        driver_id = sos.get("assigned_driver_id")
+
+        if not driver_id:
+            raise HTTPException(status_code=400, detail="No driver assigned to this SOS.")
+
+        # Update driver_tasks status to COMPLETED
+        tasks = db.table("driver_tasks").select("id").eq("sos_id", sos_id).eq("driver_id", driver_id).eq("status", "PENDING").execute().data
+        if tasks:
+            db.table("driver_tasks").update({
+                "status": "COMPLETED",
+                "updated_at": datetime.utcnow().isoformat()
+            }).eq("id", tasks[0]["id"]).execute()
+
+        # Update sos_requests
+        db.table("sos_requests").update({
+            "driver_status": "ARRIVED",
+            "updated_at": datetime.utcnow().isoformat()
+        }).eq("id", sos_id).execute()
+
+        # Mark driver as Available again
+        db.table("drivers").update({"status": "Available"}).eq("id", driver_id).execute()
+
+        tl = {
+            "sos_id": sos_id,
+            "event_type": "DRIVER_COMPLETED",
+            "actor_role": "driver",
+            "actor_id": driver_id,
+            "actor_name": sos.get("assigned_driver_name"),
+            "message": f"Driver {sos.get('assigned_driver_name', 'Unknown')} completed the pickup.",
+            "created_at": datetime.utcnow().isoformat()
+        }
+        db.table("sos_timelines").insert(tl).execute()
+
+        # Notify patient tracker
+        try:
+            asyncio.run(manager.broadcast_to_sos(sos_id, {
+                "type": "DRIVER_COMPLETED",
+                "message": tl["message"]
+            }))
+        except Exception:
+            pass
+
+        return {"message": "Driver task completed", "sos_id": sos_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        return _net_err(e)
+
+
+# ==========================================
+# 👨‍⚕️ DOCTOR ASSIGNMENT (NEW: uses doctor_assignments table)
+# ==========================================
+
+@router.post("/assign-doctor/{sos_id}")
+def assign_doctor(sos_id: str, payload: AssignDoctorPayload, db: Client = Depends(get_supabase)):
+    """Hospital assigns a doctor to an SOS. Creates a dedicated doctor_assignments record.
+    Doctor CANNOT reject (hospital-assigned). Only PENDING → COMPLETED."""
+    if not db:
+        return JSONResponse(status_code=503, content={"detail": "Supabase client not initialized."})
+    try:
+        res = db.table("sos_requests").select("*").eq("id", sos_id).execute()
+        if not res.data:
+            raise HTTPException(status_code=404, detail="SOS not found")
+        sos = res.data[0]
+
+        doc_res = db.table("doctors").select("*").eq("id", payload.doctor_id).execute()
+        if not doc_res.data:
+            raise HTTPException(status_code=404, detail="Doctor not found")
+        doctor = doc_res.data[0]
+
+        # --- Create dedicated doctor_assignments record ---
+        assignment_id = f"DASGN-{uuid.uuid4().hex[:8].upper()}"
+        doctor_assignment = {
+            "id": assignment_id,
+            "sos_id": sos_id,
+            "hospital_id": sos["hospital_id"],
+            "doctor_id": doctor["id"],
+            "user_id": payload.user_id,
+            "status": "PENDING",
+            "citizen_lat": sos["citizen_lat"],
+            "citizen_lng": sos["citizen_lng"],
+            "disease": sos.get("disease"),
+            "transcript": sos.get("transcript"),
+            "triage_urgency": sos.get("triage_urgency"),
+            "created_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.utcnow().isoformat()
+        }
+        db.table("doctor_assignments").insert(doctor_assignment).execute()
+
+        # --- Also update sos_requests for backward compatibility ---
+        sos_update = {
+            "assigned_doctor_id": doctor["id"],
+            "assigned_doctor_name": doctor.get("name", "Unknown"),
+            "doctor_status": "ASSIGNED",
+            "updated_at": datetime.utcnow().isoformat()
+        }
+        db.table("sos_requests").update(sos_update).eq("id", sos_id).execute()
+        db.table("doctors").update({"status": "In Surgery"}).eq("id", payload.doctor_id).execute()
+
+        tl = {
+            "sos_id": sos_id,
+            "event_type": "DOCTOR_ASSIGNED",
+            "actor_role": "hospital",
+            "message": f"Dr. {doctor.get('name')} assigned to emergency.",
+            "created_at": datetime.utcnow().isoformat()
+        }
+        db.table("sos_timelines").insert(tl).execute()
+        
+        # Send real-time push to the doctor's mobile app via WebSocket
+        try:
+            asyncio.run(manager.broadcast_to_doctor(doctor["id"], {
+                "type": "NEW_CASE_ASSIGNED",
+                "assignment_id": assignment_id,
+                "sos_id": sos_id,
+                "citizen_lat": sos["citizen_lat"],
+                "citizen_lng": sos["citizen_lng"],
+                "disease": sos.get("disease"),
+                "transcript": sos.get("transcript"),
+                "triage_urgency": sos.get("triage_urgency"),
+                "message": tl["message"]
+            }))
+        except Exception:
+            pass
+
+        # Send real-time update to the patient's tracker
+        try:
+            asyncio.run(manager.broadcast_to_sos(sos_id, {
+                "type": "DOCTOR_ASSIGNED",
+                "doctor_name": doctor.get('name'),
+                "doctor_specialty": doctor.get('specialization', 'Emergency Physician'),
+                "message": tl["message"]
+            }))
+        except Exception:
+            pass
+        
+        return {"message": "Doctor assigned successfully", "sos_id": sos_id, "assignment_id": assignment_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        return _net_err(e)
+
+
+@router.post("/doctor-complete/{sos_id}")
+def doctor_complete_sos(sos_id: str, db: Client = Depends(get_supabase)):
+    """Doctor marks the assignment as completed.
+    Updates doctor_assignments.status = 'COMPLETED'. Assignment disappears from mobile app."""
+    if not db:
+        return JSONResponse(status_code=503, content={"detail": "Supabase client not initialized."})
+    try:
+        res = db.table("sos_requests").select("*").eq("id", sos_id).execute()
+        if not res.data:
+            raise HTTPException(status_code=404, detail="SOS not found")
+        sos = res.data[0]
+        doctor_id = sos.get("assigned_doctor_id")
+
+        if not doctor_id:
+            raise HTTPException(status_code=400, detail="No doctor assigned to this SOS.")
+
+        # Update doctor_assignments status to COMPLETED
+        assignments = db.table("doctor_assignments").select("id").eq("sos_id", sos_id).eq("doctor_id", doctor_id).eq("status", "PENDING").execute().data
+        if assignments:
+            db.table("doctor_assignments").update({
+                "status": "COMPLETED",
+                "updated_at": datetime.utcnow().isoformat()
+            }).eq("id", assignments[0]["id"]).execute()
+
+        # Update sos_requests
+        db.table("sos_requests").update({
+            "doctor_status": "COMPLETED",
+            "updated_at": datetime.utcnow().isoformat()
+        }).eq("id", sos_id).execute()
+
+        # Mark doctor as Available again
+        db.table("doctors").update({"status": "Available"}).eq("id", doctor_id).execute()
+
+        tl = {
+            "sos_id": sos_id,
+            "event_type": "DOCTOR_COMPLETED",
+            "actor_role": "doctor",
+            "actor_id": doctor_id,
+            "actor_name": sos.get("assigned_doctor_name"),
+            "message": f"Dr. {sos.get('assigned_doctor_name', 'Unknown')} completed the case.",
+            "created_at": datetime.utcnow().isoformat()
+        }
+        db.table("sos_timelines").insert(tl).execute()
+
+        # Notify patient tracker
+        try:
+            asyncio.run(manager.broadcast_to_sos(sos_id, {
+                "type": "DOCTOR_COMPLETED",
+                "message": tl["message"]
+            }))
+        except Exception:
+            pass
+
+        return {"message": "Doctor assignment completed", "sos_id": sos_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        return _net_err(e)
+
+
+# ==========================================
+# 📋 TIMELINE
+# ==========================================
 
 @router.get("/timeline/{sos_id}")
 def get_sos_timeline(sos_id: str, db: Client = Depends(get_supabase)):
@@ -363,6 +632,11 @@ def add_timeline_event(sos_id: str, payload: TimelinePayload, db: Client = Depen
     except Exception as e:
         return _net_err(e)
 
+
+# ==========================================
+# 🤝 HELPER NOTIFICATIONS (enhanced with coordinates + disease)
+# ==========================================
+
 def haversine(lat1, lon1, lat2, lon2):
     R = 6371.0
     lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
@@ -374,6 +648,7 @@ def haversine(lat1, lon1, lat2, lon2):
 
 @router.post("/notify-helpers/{sos_id}")
 def notify_nearby_helpers(sos_id: str, db: Client = Depends(get_supabase)):
+    """Notifies nearby helpers. Now includes citizen coordinates and disease info in the notification."""
     if not db:
         return JSONResponse(status_code=503, content={"detail": "Supabase client not initialized."})
     try:
@@ -393,8 +668,33 @@ def notify_nearby_helpers(sos_id: str, db: Client = Depends(get_supabase)):
                     h_lat, h_lng = map(float, h["location"].split(","))
                     dist = haversine(sos["citizen_lat"], sos["citizen_lng"], h_lat, h_lng)
                     if dist <= radius_km:
-                        db.table("helper_notifications").insert({"sos_id": sos["id"], "helper_id": h["id"]}).execute()
+                        # Insert enriched notification with coordinates + disease
+                        notif = {
+                            "sos_id": sos["id"],
+                            "helper_id": h["id"],
+                            "citizen_lat": sos["citizen_lat"],
+                            "citizen_lng": sos["citizen_lng"],
+                            "disease": sos.get("disease"),
+                            "transcript": sos.get("transcript"),
+                            "triage_urgency": sos.get("triage_urgency"),
+                        }
+                        db.table("helper_notifications").insert(notif).execute()
                         notified_count += 1
+
+                        # Send real-time push to helper via WebSocket
+                        try:
+                            asyncio.run(manager.broadcast_to_helper(h["id"], {
+                                "type": "SOS_ALERT",
+                                "sos_id": sos["id"],
+                                "citizen_lat": sos["citizen_lat"],
+                                "citizen_lng": sos["citizen_lng"],
+                                "disease": sos.get("disease"),
+                                "transcript": sos.get("transcript"),
+                                "triage_urgency": sos.get("triage_urgency"),
+                                "message": f"Emergency nearby! {sos.get('transcript', 'Help needed')}"
+                            }))
+                        except Exception:
+                            pass
                 except Exception:
                     pass
 
@@ -414,6 +714,11 @@ def notify_nearby_helpers(sos_id: str, db: Client = Depends(get_supabase)):
     except Exception as e:
         return _net_err(e)
 
+
+# ==========================================
+# 📊 STATUS & VOICE CALL
+# ==========================================
+
 @router.get("/status/{sos_id}")
 def check_sos_status(sos_id: str, db: Client = Depends(get_supabase)):
     """Called by the Citizen Frontend to poll for hospital response."""
@@ -428,6 +733,7 @@ def check_sos_status(sos_id: str, db: Client = Depends(get_supabase)):
         return {
             "sos_id": sos_request["id"],
             "status": sos_request["status"],
+            "disease": sos_request.get("disease"),
             "doctor_status": sos_request.get("doctor_status"),
             "assigned_doctor_name": sos_request.get("assigned_doctor_name"),
             "assigned_doctor_id": sos_request.get("assigned_doctor_id"),
@@ -478,4 +784,3 @@ async def initiate_call(sos_id: str, db: Client = Depends(get_supabase)):
         raise
     except Exception as e:
         return _net_err(e)
-

@@ -1,16 +1,21 @@
+"""
+Helper (Community Worker) Authentication Routes - Supabase REST Version
+Migrated from deprecated SQLModel get_session() to Supabase REST client.
+"""
+
 from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import List, Optional
-from sqlmodel import Session, select
-import hashlib
+import uuid
+from datetime import datetime
 
-from database import get_session
-from db_models import User, CommunityWorker, RoleEnum
+from database import get_supabase
+from supabase import Client
+from app.auth.security import verify_password, get_password_hash, create_access_token
 
 router = APIRouter(prefix="/helpers", tags=["Community Helpers"])
 
-def hash_password(password: str) -> str:
-    return hashlib.sha256(password.encode()).hexdigest()
 
 class HelperRegisterRequest(BaseModel):
     name: str
@@ -18,72 +23,129 @@ class HelperRegisterRequest(BaseModel):
     password: str
     role_type: str
     location: str
-    certificate_id: str
-    skills: List[str]
+    certificate_id: Optional[str] = None
+    skills: List[str] = []
     latitude: Optional[float] = 17.3850
     longitude: Optional[float] = 78.4867
+
 
 class HelperLoginRequest(BaseModel):
     phone: str
     password: str
 
-@router.post("/register")
-def register_helper(payload: HelperRegisterRequest, db: Session = Depends(get_session)):
-    # Check if user already exists
-    existing_user = db.exec(select(User).where(User.phone == payload.phone)).first()
-    if existing_user:
-        raise HTTPException(status_code=400, detail="User with this phone number already exists.")
 
-    # Create User
-    new_user = User(
-        name=payload.name,
-        phone=payload.phone,
-        password_hash=hash_password(payload.password),
-        role=RoleEnum.COMMUNITY_WORKER
-    )
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
+def _net_err(e):
+    err_str = str(e).lower()
+    is_network = any(k in err_str for k in ["getaddrinfo", "connecterror", "connection", "timeout", "network", "errno 11001"])
+    if is_network:
+        return JSONResponse(status_code=503, content={"detail": "Supabase unreachable. Retrying via cloud backend."})
+    raise HTTPException(status_code=500, detail=str(e))
 
-    # Create CommunityWorker
-    skills_str = ", ".join(payload.skills) if payload.skills else ""
-    new_worker = CommunityWorker(
-        user_id=new_user.id,
-        role_type=payload.role_type,
-        certificate_id=payload.certificate_id,
-        skills=skills_str,
-        current_lat=payload.latitude,
-        current_lng=payload.longitude,
-        is_available=True
-    )
-    db.add(new_worker)
-    db.commit()
-    db.refresh(new_worker)
 
-    return {
-        "message": "Helper registered successfully",
-        "user_id": new_user.id,
-        "worker_id": new_worker.id
-    }
+@router.post("/register", status_code=status.HTTP_201_CREATED)
+def register_helper(payload: HelperRegisterRequest, db: Client = Depends(get_supabase)):
+    """Register a new community helper via Supabase REST."""
+    if not db:
+        return JSONResponse(status_code=503, content={"detail": "Supabase client not initialized."})
+    try:
+        # Check if phone already exists
+        existing = db.table("helpers").select("id").eq("phone", payload.phone.strip()).execute().data
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Phone '{payload.phone}' is already registered. Please login."
+            )
+
+        helper_id = f"HLP-{uuid.uuid4().hex[:8].upper()}"
+        helper = {
+            "id": helper_id,
+            "name": payload.name.strip(),
+            "phone": payload.phone.strip(),
+            "password_hash": get_password_hash(payload.password),
+            "location": payload.location,
+            "latitude": payload.latitude,
+            "longitude": payload.longitude,
+            "role_type": payload.role_type,
+            "cert_id": payload.certificate_id,
+            "skills": payload.skills or [],
+            "is_active": True,
+            "created_at": datetime.utcnow().isoformat()
+        }
+        db.table("helpers").insert(helper).execute()
+
+        token = create_access_token(data={"sub": helper_id, "role": "helper"})
+        return {
+            "message": "Helper registered successfully",
+            "user_id": helper_id,
+            "name": payload.name.strip(),
+            "token": token,
+            "role": "helper"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        return _net_err(e)
+
 
 @router.post("/login")
-def login_helper(payload: HelperLoginRequest, db: Session = Depends(get_session)):
-    user = db.exec(select(User).where(User.phone == payload.phone)).first()
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid phone number or password")
+def login_helper(payload: HelperLoginRequest, db: Client = Depends(get_supabase)):
+    """Login an existing community helper via Supabase REST."""
+    if not db:
+        return JSONResponse(status_code=503, content={"detail": "Supabase client not initialized."})
+    try:
+        helpers = db.table("helpers").select("*").eq("phone", payload.phone.strip()).execute().data
+        if not helpers:
+            raise HTTPException(status_code=401, detail="No helper account found. Please register first.")
+        helper = helpers[0]
 
-    if user.password_hash != hash_password(payload.password):
-        raise HTTPException(status_code=401, detail="Invalid phone number or password")
+        if not verify_password(payload.password, helper["password_hash"]):
+            raise HTTPException(status_code=401, detail="Invalid phone number or password")
 
-    if user.role != RoleEnum.COMMUNITY_WORKER:
-        raise HTTPException(status_code=403, detail="User is not registered as a Community Helper")
+        if not helper.get("is_active", True):
+            raise HTTPException(status_code=403, detail="Account deactivated.")
 
-    worker = db.exec(select(CommunityWorker).where(CommunityWorker.user_id == user.id)).first()
+        token = create_access_token(data={"sub": helper["id"], "role": "helper"})
 
-    return {
-        "message": "Login successful",
-        "user_id": user.id,
-        "name": user.name,
-        "role_type": worker.role_type if worker else None,
-        "location": "Banjara Hills Sector 4, Hyderabad" # Mock location for UI compatibility
-    }
+        return {
+            "message": "Login successful",
+            "user_id": helper["id"],
+            "name": helper["name"],
+            "token": token,
+            "role": "helper",
+            "role_type": helper.get("role_type"),
+            "location": helper.get("location")
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        return _net_err(e)
+
+
+@router.get("/notifications/{helper_id}")
+def get_helper_notifications_by_sos(helper_id: str, sos_id: Optional[str] = None, db: Client = Depends(get_supabase)):
+    """Fetch helper notifications, optionally filtered by SOS ID.
+    Returns enriched notifications with citizen coordinates and disease info."""
+    if not db:
+        return JSONResponse(status_code=503, content={"detail": "Supabase client not initialized."})
+    try:
+        query = db.table("helper_notifications").select("*").eq("helper_id", helper_id)
+        if sos_id:
+            query = query.eq("sos_id", sos_id)
+        notifs = query.order("created_at", desc=True).execute().data or []
+
+        formatted = []
+        for notif in notifs:
+            formatted.append({
+                "notification_id": notif["id"],
+                "sos_id": notif["sos_id"],
+                "status": notif["status"],
+                "citizen_lat": notif.get("citizen_lat"),
+                "citizen_lng": notif.get("citizen_lng"),
+                "disease": notif.get("disease"),
+                "transcript": notif.get("transcript"),
+                "triage_urgency": notif.get("triage_urgency"),
+                "timestamp": notif.get("created_at")
+            })
+        return {"total": len(formatted), "notifications": formatted}
+    except Exception as e:
+        return _net_err(e)

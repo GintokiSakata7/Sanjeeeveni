@@ -1,11 +1,14 @@
 class EmergencyCase {
   final String id;
   final String? notificationId;
+  final String? taskId;          // driver_tasks.id (for driver role)
+  final String? assignmentId;    // doctor_assignments.id (for doctor role)
   final String patientName;
   final int patientAge;
   final String patientGender;
   final String bloodGroup;
   final String emergencyType;
+  final String? disease;         // disease/condition of the user
   final String severity; // CRITICAL, HIGH, MODERATE
   final String locationAddress;
   final double latitude;
@@ -29,6 +32,7 @@ class EmergencyCase {
     required this.patientGender,
     required this.bloodGroup,
     required this.emergencyType,
+    this.disease,
     required this.severity,
     required this.locationAddress,
     required this.latitude,
@@ -44,6 +48,8 @@ class EmergencyCase {
     this.helperAccepted = false,
     this.helperName,
     this.notificationId,
+    this.taskId,
+    this.assignmentId,
     required this.timestamp,
   });
 
@@ -81,11 +87,14 @@ class EmergencyCase {
     return EmergencyCase(
       id: json['id']?.toString() ?? json['case_id']?.toString() ?? json['sos_id']?.toString() ?? 'EMG-LIVE',
       notificationId: json['notification_id']?.toString(),
+      taskId: json['task_id']?.toString(),
+      assignmentId: json['assignment_id']?.toString(),
       patientName: json['patient_name']?.toString() ?? 'Emergency Victim',
       patientAge: json['patient_age'] is int ? json['patient_age'] : 45,
       patientGender: json['patient_gender']?.toString() ?? 'Emergency Intake',
       bloodGroup: json['blood_group']?.toString() ?? 'O+',
       emergencyType: json['emergency_type']?.toString() ?? 'Severe Emergency',
+      disease: json['disease']?.toString(),
       severity: json['severity']?.toString() ?? json['triage_urgency']?.toString() ?? 'CRITICAL',
       locationAddress: json['location_address']?.toString() ?? 'Emergency Scene Coordinates',
       latitude: (json['latitude'] ?? json['patient_lat'] ?? 17.4156).toDouble(),
@@ -108,14 +117,19 @@ class EmergencyCase {
     String? helperName,
     int? etaMinutes,
     double? distanceKm,
+    String? disease,
   }) {
     return EmergencyCase(
       id: id,
+      notificationId: notificationId,
+      taskId: taskId,
+      assignmentId: assignmentId,
       patientName: patientName,
       patientAge: patientAge,
       patientGender: patientGender,
       bloodGroup: bloodGroup,
       emergencyType: emergencyType,
+      disease: disease ?? this.disease,
       severity: severity,
       locationAddress: locationAddress,
       latitude: latitude,

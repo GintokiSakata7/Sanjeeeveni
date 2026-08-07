@@ -64,6 +64,91 @@ async def websocket_doctor_endpoint(websocket: WebSocket, doctor_id: str):
         manager.disconnect_doctor(websocket, doctor_id)
 
 
+@router.websocket("/driver/{driver_id}")
+async def websocket_driver_endpoint(websocket: WebSocket, driver_id: str):
+    """WebSocket endpoint for the driver mobile app to receive task assignments and send status updates.
+    
+    Message types (Driver → Server):
+        TASK_ACCEPTED  - Driver accepts a pending task
+        TASK_REJECTED  - Driver rejects a pending task
+        TASK_COMPLETED - Driver marks task as complete
+        LOCATION_UPDATE - Driver sends GPS coordinates
+    
+    Message types (Server → Driver):
+        NEW_TASK_ASSIGNED - Hospital assigned a new pickup task
+    """
+    await manager.connect_driver(websocket, driver_id)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            message = json.loads(data)
+            msg_type = message.get("type")
+            
+            if msg_type == "LOCATION_UPDATE":
+                # Driver is sharing GPS location — relay to the SOS patient tracker
+                sos_id = message.get("sos_id")
+                if sos_id:
+                    await manager.broadcast_to_sos(sos_id, {
+                        "type": "DRIVER_LOCATION",
+                        "driver_id": driver_id,
+                        "latitude": message.get("latitude"),
+                        "longitude": message.get("longitude"),
+                    })
+            
+            elif msg_type in ["TASK_ACCEPTED", "TASK_REJECTED", "TASK_COMPLETED"]:
+                # Relay driver actions to the SOS patient tracker
+                sos_id = message.get("sos_id")
+                if sos_id:
+                    await manager.broadcast_to_sos(sos_id, {
+                        "type": msg_type,
+                        "driver_id": driver_id,
+                        "sos_id": sos_id,
+                        "message": message.get("message", "")
+                    })
+                    
+    except WebSocketDisconnect:
+        manager.disconnect_driver(websocket, driver_id)
+    except Exception as e:
+        logger.error(f"Driver WS Error: {e}")
+        manager.disconnect_driver(websocket, driver_id)
+
+
+@router.websocket("/helper/{helper_id}")
+async def websocket_helper_endpoint(websocket: WebSocket, helper_id: str):
+    """WebSocket endpoint for the helper mobile app to receive SOS-based notifications.
+    
+    Message types (Helper → Server):
+        ALERT_ACCEPTED - Helper accepts an SOS alert
+        ALERT_REJECTED - Helper rejects an SOS alert
+    
+    Message types (Server → Helper):
+        SOS_ALERT - New SOS nearby with disease + coordinates
+    """
+    await manager.connect_helper(websocket, helper_id)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            message = json.loads(data)
+            msg_type = message.get("type")
+            
+            if msg_type in ["ALERT_ACCEPTED", "ALERT_REJECTED"]:
+                # Relay helper response to SOS patient tracker
+                sos_id = message.get("sos_id")
+                if sos_id:
+                    await manager.broadcast_to_sos(sos_id, {
+                        "type": f"HELPER_{msg_type.split('_')[1]}",
+                        "helper_id": helper_id,
+                        "sos_id": sos_id,
+                        "message": message.get("message", "")
+                    })
+                    
+    except WebSocketDisconnect:
+        manager.disconnect_helper(websocket, helper_id)
+    except Exception as e:
+        logger.error(f"Helper WS Error: {e}")
+        manager.disconnect_helper(websocket, helper_id)
+
+
 # --- Standalone WebRTC Test Module Integration ---
 test_clients = set()
 
@@ -88,3 +173,4 @@ async def websocket_test_endpoint(websocket: WebSocket):
         logger.error(f"Test WS Error: {e}")
         if websocket in test_clients:
             test_clients.remove(websocket)
+

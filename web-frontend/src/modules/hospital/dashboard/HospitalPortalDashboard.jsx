@@ -421,16 +421,7 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
             onClick={() => setActiveTab('AMBULANCES')}
           >
             <Ambulance size={18} />
-            <span>Ambulance Fleet ({ambulances.length})</span>
-          </button>
-
-          <button
-            type="button"
-            className={`hms-nav-item ${activeTab === 'DRIVERS' ? 'active' : ''}`}
-            onClick={() => setActiveTab('DRIVERS')}
-          >
-            <Car size={18} />
-            <span>Driver Directory ({drivers.length})</span>
+            <span>Ambulance Driver ({drivers.length})</span>
           </button>
 
           <button
@@ -711,62 +702,8 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
             </div>
           )}
 
-          {/* TAB 3: AMBULANCE FLEET TABLE */}
+          {/* TAB 3: AMBULANCE DRIVERS */}
           {activeTab === 'AMBULANCES' && (
-            <div className="hms-table-container">
-              <div className="table-header-bar">
-                <h3>Emergency Ambulance Fleet</h3>
-                <button type="button" className="btn-add-primary" onClick={() => setShowAmbulanceModal(true)}>
-                  <Plus size={16} /> Add Ambulance Vehicle
-                </button>
-              </div>
-
-              <table className="hms-table">
-                <thead>
-                  <tr>
-                    <th>Registration #</th>
-                    <th>Vehicle Type</th>
-                    <th>Assigned Driver</th>
-                    <th>Dispatch Status</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {ambulances.filter(a => (a.vehicle_registration || '').toLowerCase().includes(searchQuery.toLowerCase())).map((amb) => (
-                    <tr key={amb.id}>
-                      <td><strong className="font-mono">{amb.vehicle_registration}</strong></td>
-                      <td>{amb.vehicle_type} Life Support</td>
-                      <td>{amb.assigned_driver_name || 'Unassigned'}</td>
-                      <td>
-                        <span className={`badge-pill ${amb.status.toLowerCase()}`}>
-                          {amb.status}
-                        </span>
-                      </td>
-                      <td>
-                        <button
-                          type="button"
-                          className="btn-table-del"
-                          onClick={() => handleDeleteAmbulance(amb.id, amb.vehicle_registration)}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                  {ambulances.length === 0 && (
-                    <tr>
-                      <td colSpan={5} className="text-center py-8 text-slate-500">
-                        No ambulance vehicles registered in fleet.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* TAB 4: DRIVER DIRECTORY TABLE */}
-          {activeTab === 'DRIVERS' && (
             <div className="hms-table-container">
               <div className="table-header-bar">
                 <h3>Emergency Ambulance Drivers</h3>

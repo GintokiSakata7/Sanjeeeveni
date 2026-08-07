@@ -224,6 +224,39 @@ class ApiService {
   Future<Map<String, dynamic>> rejectHelperAlert(String notificationId) async {
     return _post('/api/v1/mobile/helper/reject/$notificationId', {});
   }
+
+  // ──────────────────────────────────────────
+  // 🚘 DRIVER TASK MANAGEMENT (NEW)
+  // ──────────────────────────────────────────
+
+  /// Get assigned tasks for a driver (only PENDING tasks are returned).
+  Future<Map<String, dynamic>> getDriverAssignedCases(String driverId) async {
+    return _get('/api/v1/mobile/driver/assigned-cases/$driverId');
+  }
+
+  /// Driver accepts a task (en route to pickup).
+  Future<Map<String, dynamic>> acceptDriverTask(String sosId) async {
+    return _post('/api/v1/routing/driver-accept/$sosId', {});
+  }
+
+  /// Driver rejects a task (hospital can reassign).
+  Future<Map<String, dynamic>> rejectDriverTask(String sosId) async {
+    return _post('/api/v1/routing/driver-reject/$sosId', {});
+  }
+
+  /// Driver marks task as completed (disappears from mobile app).
+  Future<Map<String, dynamic>> completeDriverTask(String sosId) async {
+    return _post('/api/v1/routing/driver-complete/$sosId', {});
+  }
+
+  // ──────────────────────────────────────────
+  // 👨‍⚕️ DOCTOR ASSIGNMENT MANAGEMENT (NEW)
+  // ──────────────────────────────────────────
+
+  /// Doctor marks assignment as completed (disappears from mobile app).
+  Future<Map<String, dynamic>> completeDoctorAssignment(String sosId) async {
+    return _post('/api/v1/routing/doctor-complete/$sosId', {});
+  }
 }
 
 /// Custom exception for API errors with status code and user-facing message.

@@ -290,6 +290,66 @@ CREATE POLICY "service_role_all" ON sos_requests FOR ALL TO service_role USING (
 CREATE POLICY "service_role_all" ON sos_timelines FOR ALL TO service_role USING (true) WITH CHECK (true);
 CREATE POLICY "service_role_all" ON helper_notifications FOR ALL TO service_role USING (true) WITH CHECK (true);
 
+-- ─── 16. DRIVER TASKS ────────────────────────────────────────
+-- Dedicated table for hospital → driver task assignments.
+-- One SOS can have one active driver task at a time.
+-- Mobile app only shows PENDING tasks; COMPLETED and REJECTED are hidden.
+CREATE TABLE IF NOT EXISTS driver_tasks (
+    id              TEXT PRIMARY KEY,
+    sos_id          TEXT NOT NULL REFERENCES sos_requests(id) ON DELETE CASCADE,
+    hospital_id     TEXT NOT NULL REFERENCES hospitals(id) ON DELETE CASCADE,
+    driver_id       TEXT NOT NULL REFERENCES drivers(id) ON DELETE CASCADE,
+    ambulance_id    TEXT REFERENCES ambulances(id) ON DELETE SET NULL,
+    status          TEXT NOT NULL DEFAULT 'PENDING',   -- PENDING, REJECTED, COMPLETED
+    citizen_lat     DOUBLE PRECISION NOT NULL,
+    citizen_lng     DOUBLE PRECISION NOT NULL,
+    disease         TEXT,
+    transcript      TEXT,
+    triage_urgency  TEXT,
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ─── 17. DOCTOR ASSIGNMENTS ─────────────────────────────────
+-- Dedicated table for hospital → doctor patient assignments.
+-- No REJECTED status — hospital assigns, doctor cannot reject.
+-- Mobile app only shows PENDING assignments; COMPLETED are hidden.
+CREATE TABLE IF NOT EXISTS doctor_assignments (
+    id              TEXT PRIMARY KEY,
+    sos_id          TEXT NOT NULL REFERENCES sos_requests(id) ON DELETE CASCADE,
+    hospital_id     TEXT NOT NULL REFERENCES hospitals(id) ON DELETE CASCADE,
+    doctor_id       TEXT NOT NULL REFERENCES doctors(id) ON DELETE CASCADE,
+    user_id         TEXT,
+    status          TEXT NOT NULL DEFAULT 'PENDING',   -- PENDING, COMPLETED
+    citizen_lat     DOUBLE PRECISION,
+    citizen_lng     DOUBLE PRECISION,
+    disease         TEXT,
+    transcript      TEXT,
+    triage_urgency  TEXT,
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ─── 18. ADD disease COLUMN TO sos_requests ──────────────────
+ALTER TABLE sos_requests ADD COLUMN IF NOT EXISTS disease TEXT;
+
+-- ─── 19. ADD CONTEXT COLUMNS TO helper_notifications ─────────
+ALTER TABLE helper_notifications ADD COLUMN IF NOT EXISTS citizen_lat DOUBLE PRECISION;
+ALTER TABLE helper_notifications ADD COLUMN IF NOT EXISTS citizen_lng DOUBLE PRECISION;
+ALTER TABLE helper_notifications ADD COLUMN IF NOT EXISTS disease TEXT;
+ALTER TABLE helper_notifications ADD COLUMN IF NOT EXISTS transcript TEXT;
+ALTER TABLE helper_notifications ADD COLUMN IF NOT EXISTS triage_urgency TEXT;
+
+-- ─── 20. RLS + POLICIES FOR NEW TABLES ──────────────────────
+ALTER TABLE driver_tasks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE doctor_assignments ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "service_role_all" ON driver_tasks;
+DROP POLICY IF EXISTS "service_role_all" ON doctor_assignments;
+
+CREATE POLICY "service_role_all" ON driver_tasks FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "service_role_all" ON doctor_assignments FOR ALL TO service_role USING (true) WITH CHECK (true);
+
 -- ─── Done ────────────────────────────────────────────────────
 SELECT 'Schema migration complete! All tables created/verified.' AS result;
 

@@ -225,10 +225,12 @@ def login_helper(payload: HelperLoginRequest, db: Client = Depends(get_supabase)
 
 
 # ──────────────────────────────────────────
-# 🚨 DOCTOR ASSIGNED CASES (mobile polling)
+# ──────────────────────────────────────────
+# 🚨 DOCTOR ASSIGNED CASES (queries doctor_assignments, PENDING only)
 # ──────────────────────────────────────────
 @router.get("/doctor/assigned-cases/{doctor_id}")
 def get_doctor_assigned_cases(doctor_id: str, db: Client = Depends(get_supabase)):
+    """Returns only PENDING doctor assignments. COMPLETED assignments are never returned."""
     if not db:
         return JSONResponse(status_code=503, content={"detail": "Supabase client not initialized."})
     try:
@@ -247,7 +249,8 @@ def get_doctor_assigned_cases(doctor_id: str, db: Client = Depends(get_supabase)
 
         target_id = doctor["id"] if doctor else clean_id
 
-        sos_items = db.table("sos_requests").select("*").eq("assigned_doctor_id", target_id).order("updated_at", desc=True).execute().data or []
+        # Query doctor_assignments table — only PENDING
+        assignments = db.table("doctor_assignments").select("*").eq("doctor_id", target_id).eq("status", "PENDING").order("updated_at", desc=True).execute().data or []
 
         hospital_name = "Emergency Trauma Center"
         if doctor:
@@ -256,27 +259,28 @@ def get_doctor_assigned_cases(doctor_id: str, db: Client = Depends(get_supabase)
                 hospital_name = hosp[0]["name"]
 
         cases = []
-        for sos in sos_items:
+        for asgn in assignments:
             cases.append({
-                "id": sos["id"],
+                "id": asgn["sos_id"],
+                "assignment_id": asgn["id"],
                 "patient_name": "Citizen Request",
                 "patient_age": None,
                 "patient_gender": "Unknown",
                 "blood_group": "Unknown",
-                "emergency_type": sos.get("transcript", "Emergency Request"),
-                "severity": sos.get("triage_urgency", "CRITICAL"),
-                "location_address": f"GPS ({sos['citizen_lat']:.4f}° N, {sos['citizen_lng']:.4f}° E)",
-                "latitude": sos["citizen_lat"],
-                "longitude": sos["citizen_lng"],
+                "emergency_type": asgn.get("transcript", "Emergency Request"),
+                "disease": asgn.get("disease"),
+                "severity": asgn.get("triage_urgency", "CRITICAL"),
+                "location_address": f"GPS ({asgn.get('citizen_lat', 0):.4f}° N, {asgn.get('citizen_lng', 0):.4f}° E)",
+                "latitude": asgn.get("citizen_lat"),
+                "longitude": asgn.get("citizen_lng"),
                 "distance_km": None,
                 "eta_minutes": None,
                 "vitals": {},
-                "reported_symptoms": [sos.get("transcript", "No transcript provided")],
-                "assigned_ambulance_unit": sos.get("assigned_ambulance_reg", "Not Assigned"),
+                "reported_symptoms": [asgn.get("transcript", "No transcript provided")],
                 "assigned_hospital": hospital_name,
                 "caller_phone": "Unknown",
-                "status": sos.get("status"),
-                "timestamp": sos.get("updated_at") or sos.get("created_at")
+                "status": asgn.get("status"),
+                "timestamp": asgn.get("updated_at") or asgn.get("created_at")
             })
 
         return {"total": len(cases), "cases": cases}
@@ -340,6 +344,7 @@ def get_live_cases(db: Client = Depends(get_supabase)):
             cases.append({
                 "id": sos["id"],
                 "emergency_type": sos.get("transcript", "Emergency Request"),
+                "disease": sos.get("disease"),
                 "severity": sos.get("triage_urgency", "CRITICAL"),
                 "latitude": sos["citizen_lat"],
                 "longitude": sos["citizen_lng"],
@@ -353,21 +358,26 @@ def get_live_cases(db: Client = Depends(get_supabase)):
 
 @router.get("/driver/assigned-cases/{driver_id}")
 def get_driver_assigned_cases(driver_id: str, db: Client = Depends(get_supabase)):
+    """Returns only PENDING driver tasks. COMPLETED and REJECTED tasks are never returned."""
     if not db:
         return JSONResponse(status_code=503, content={"detail": "Supabase client not initialized."})
     try:
-        sos_items = db.table("sos_requests").select("*").eq("assigned_driver_id", driver_id).order("updated_at", desc=True).execute().data or []
+        # Query driver_tasks table — only PENDING
+        tasks = db.table("driver_tasks").select("*").eq("driver_id", driver_id).eq("status", "PENDING").order("updated_at", desc=True).execute().data or []
         cases = []
-        for sos in sos_items:
+        for task in tasks:
             cases.append({
-                "id": sos["id"],
-                "patient_name": f"Victim ({sos['id'][-4:]})",
-                "emergency_type": sos.get("transcript", "Trauma"),
-                "severity": sos.get("triage_urgency", "CRITICAL"),
-                "latitude": sos["citizen_lat"],
-                "longitude": sos["citizen_lng"],
-                "status": sos.get("driver_status"),
-                "timestamp": sos.get("updated_at") or sos.get("created_at")
+                "id": task["sos_id"],
+                "task_id": task["id"],
+                "patient_name": f"Victim ({task['sos_id'][-4:]})",
+                "emergency_type": task.get("transcript", "Trauma"),
+                "disease": task.get("disease"),
+                "severity": task.get("triage_urgency", "CRITICAL"),
+                "latitude": task["citizen_lat"],
+                "longitude": task["citizen_lng"],
+                "ambulance_id": task.get("ambulance_id"),
+                "status": task.get("status"),
+                "timestamp": task.get("updated_at") or task.get("created_at")
             })
         return {"total": len(cases), "cases": cases}
     except Exception as e:
@@ -376,39 +386,53 @@ def get_driver_assigned_cases(driver_id: str, db: Client = Depends(get_supabase)
 
 @router.get("/helper/nearby-alerts/{helper_id}")
 def get_helper_alerts(helper_id: str, db: Client = Depends(get_supabase)):
+    """Returns helper notifications enriched with citizen coordinates and disease info.
+    Now reads coordinates + disease directly from helper_notifications table (no extra SOS lookup needed)."""
     if not db:
         return JSONResponse(status_code=503, content={"detail": "Supabase client not initialized."})
     try:
         notifs = db.table("helper_notifications").select("*").eq("helper_id", helper_id).order("created_at", desc=True).execute().data or []
         formatted = []
         for notif in notifs:
-            sos_res = db.table("sos_requests").select("*").eq("id", notif["sos_id"]).execute().data
-            if not sos_res:
-                continue
-            sos = sos_res[0]
+            # Use enriched fields from helper_notifications if available, fallback to SOS lookup
+            citizen_lat = notif.get("citizen_lat")
+            citizen_lng = notif.get("citizen_lng")
+            disease = notif.get("disease")
+            transcript = notif.get("transcript")
+            triage_urgency = notif.get("triage_urgency")
+
+            # Fallback: if coordinates not in notification, fetch from SOS
+            if citizen_lat is None:
+                sos_res = db.table("sos_requests").select("*").eq("id", notif["sos_id"]).execute().data
+                if not sos_res:
+                    continue
+                sos = sos_res[0]
+                citizen_lat = sos.get("citizen_lat")
+                citizen_lng = sos.get("citizen_lng")
+                disease = disease or sos.get("disease")
+                transcript = transcript or sos.get("transcript")
+                triage_urgency = triage_urgency or sos.get("triage_urgency")
+
             formatted.append({
-                "id": sos.get("id"),
+                "id": notif.get("sos_id"),
                 "notification_id": notif["id"],
                 "status": notif["status"],
                 "patient_name": "Emergency Victim",
-                "patient_age": 45,
-                "patient_gender": "Unknown",
-                "blood_group": "O+",
-                "emergency_type": sos.get("transcript", "Emergency Intake"),
-                "severity": sos.get("severity", "HIGH"),
-                "latitude": sos.get("citizen_lat"),
-                "longitude": sos.get("citizen_lng"),
-                "location_address": "Emergency Scene Coordinates",
-                "distance_km": 1.5,
-                "eta_minutes": 5,
-                "assigned_ambulance_unit": sos.get("assigned_ambulance_reg", "None"),
-                "assigned_hospital": "None",
-                "caller_phone": "+91 98765 43210",
+                "emergency_type": transcript or "Emergency Intake",
+                "disease": disease,
+                "severity": triage_urgency or "HIGH",
+                "latitude": citizen_lat,
+                "longitude": citizen_lng,
+                "location_address": f"GPS ({citizen_lat:.4f}° N, {citizen_lng:.4f}° E)" if citizen_lat else "Unknown",
+                "distance_km": None,
+                "eta_minutes": None,
+                "caller_phone": "Unknown",
                 "timestamp": notif.get("created_at")
             })
         return {"total": len(formatted), "alerts": formatted}
     except Exception as e:
         return _net_err(e)
+
 
 
 from pydantic import BaseModel

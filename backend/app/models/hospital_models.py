@@ -239,6 +239,7 @@ class SOSRequest(SQLModel, table=True):
     citizen_lng: float
     transcript: str
     triage_urgency: str
+    disease: Optional[str] = Field(default=None)
     image_url: Optional[str] = Field(default=None)
     status: str = Field(default="PENDING")  # PENDING, ACCEPTED, REJECTED
     
@@ -282,4 +283,53 @@ class HelperNotification(SQLModel, table=True):
     sos_id: str = Field(foreign_key="sos_requests.id", index=True)
     helper_id: str = Field(foreign_key="helpers.id", index=True)
     status: str = Field(default="SENT")  # SENT, SEEN, RESPONDING, ARRIVED
+    citizen_lat: Optional[float] = Field(default=None)
+    citizen_lng: Optional[float] = Field(default=None)
+    disease: Optional[str] = Field(default=None)
+    transcript: Optional[str] = Field(default=None)
+    triage_urgency: Optional[str] = Field(default=None)
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class DriverTask(SQLModel, table=True):
+    """Dedicated table for hospital → driver task assignments.
+    Status: PENDING | REJECTED | COMPLETED.
+    Mobile app only shows PENDING tasks."""
+    __tablename__ = "driver_tasks"
+    __table_args__ = {"extend_existing": True}
+
+    id: str = Field(primary_key=True)
+    sos_id: str = Field(foreign_key="sos_requests.id", index=True)
+    hospital_id: str = Field(foreign_key="hospitals.id", index=True)
+    driver_id: str = Field(foreign_key="drivers.id", index=True)
+    ambulance_id: Optional[str] = Field(default=None, foreign_key="ambulances.id")
+    status: str = Field(default="PENDING")  # PENDING, REJECTED, COMPLETED
+    citizen_lat: float
+    citizen_lng: float
+    disease: Optional[str] = Field(default=None)
+    transcript: Optional[str] = Field(default=None)
+    triage_urgency: Optional[str] = Field(default=None)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class DoctorAssignment(SQLModel, table=True):
+    """Dedicated table for hospital → doctor patient assignments.
+    Status: PENDING | COMPLETED (no REJECTED — hospital assigns, doctor cannot reject).
+    Mobile app only shows PENDING assignments."""
+    __tablename__ = "doctor_assignments"
+    __table_args__ = {"extend_existing": True}
+
+    id: str = Field(primary_key=True)
+    sos_id: str = Field(foreign_key="sos_requests.id", index=True)
+    hospital_id: str = Field(foreign_key="hospitals.id", index=True)
+    doctor_id: str = Field(foreign_key="doctors.id", index=True)
+    user_id: Optional[str] = Field(default=None)
+    status: str = Field(default="PENDING")  # PENDING, COMPLETED
+    citizen_lat: Optional[float] = Field(default=None)
+    citizen_lng: Optional[float] = Field(default=None)
+    disease: Optional[str] = Field(default=None)
+    transcript: Optional[str] = Field(default=None)
+    triage_urgency: Optional[str] = Field(default=None)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
