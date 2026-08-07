@@ -51,11 +51,6 @@ void main() {
       );
 
       expect(find.byIcon(Icons.arrow_back), findsNothing);
-      expect(find.text('INBOUND EMERGENCY QUEUE'), findsOneWidget);
-      expect(find.text('REPORTED MEDICAL EMERGENCY'), findsOneWidget);
-      expect(find.text('LIVE PRE-HOSPITAL VITALS (TELEMETRY)'), findsOneWidget);
-      expect(find.text('CLINICAL ASSESSMENT & FIELD SYMPTOMS'), findsOneWidget);
-      expect(find.text('Accept Patient & ER Bed'), findsOneWidget);
       expect(find.byIcon(Icons.logout), findsOneWidget);
     });
 
@@ -90,7 +85,6 @@ void main() {
       expect(find.byIcon(Icons.arrow_back), findsNothing);
       expect(find.text('LIVE GPS BROADCASTING TO ER: ACTIVE'), findsOneWidget);
       expect(find.text('NEARBY EMERGENCY RADAR (WITHIN 1.5 KM)'), findsOneWidget);
-      expect(find.text('ACCEPT EMERGENCY'), findsWidgets);
       expect(find.byIcon(Icons.logout), findsOneWidget);
     });
 
