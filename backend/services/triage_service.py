@@ -137,7 +137,7 @@ async def _call_groq_triage(
         "Content-Type": "application/json"
     }
     payload = {
-        "model": "llama-3.3-70b-versatile",
+        "model": "llama3-8b-8192",
         "messages": [
             {"role": "system", "content": "You are an expert medical dispatcher AI. Return strictly valid JSON."},
             {"role": "user", "content": prompt}

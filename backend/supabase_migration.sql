@@ -259,20 +259,37 @@ ALTER TABLE sos_timelines ENABLE ROW LEVEL SECURITY;
 ALTER TABLE helper_notifications ENABLE ROW LEVEL SECURITY;
 
 -- Allow service_role (used by backend) to do everything
-CREATE POLICY IF NOT EXISTS "service_role_all" ON hospitals FOR ALL TO service_role USING (true) WITH CHECK (true);
-CREATE POLICY IF NOT EXISTS "service_role_all" ON hospital_addresses FOR ALL TO service_role USING (true) WITH CHECK (true);
-CREATE POLICY IF NOT EXISTS "service_role_all" ON hospital_administrators FOR ALL TO service_role USING (true) WITH CHECK (true);
-CREATE POLICY IF NOT EXISTS "service_role_all" ON hospital_details FOR ALL TO service_role USING (true) WITH CHECK (true);
-CREATE POLICY IF NOT EXISTS "service_role_all" ON hospital_documents FOR ALL TO service_role USING (true) WITH CHECK (true);
-CREATE POLICY IF NOT EXISTS "service_role_all" ON hospital_integrations FOR ALL TO service_role USING (true) WITH CHECK (true);
-CREATE POLICY IF NOT EXISTS "service_role_all" ON hospital_verifications FOR ALL TO service_role USING (true) WITH CHECK (true);
-CREATE POLICY IF NOT EXISTS "service_role_all" ON doctors FOR ALL TO service_role USING (true) WITH CHECK (true);
-CREATE POLICY IF NOT EXISTS "service_role_all" ON drivers FOR ALL TO service_role USING (true) WITH CHECK (true);
-CREATE POLICY IF NOT EXISTS "service_role_all" ON ambulances FOR ALL TO service_role USING (true) WITH CHECK (true);
-CREATE POLICY IF NOT EXISTS "service_role_all" ON helpers FOR ALL TO service_role USING (true) WITH CHECK (true);
-CREATE POLICY IF NOT EXISTS "service_role_all" ON sos_requests FOR ALL TO service_role USING (true) WITH CHECK (true);
-CREATE POLICY IF NOT EXISTS "service_role_all" ON sos_timelines FOR ALL TO service_role USING (true) WITH CHECK (true);
-CREATE POLICY IF NOT EXISTS "service_role_all" ON helper_notifications FOR ALL TO service_role USING (true) WITH CHECK (true);
+-- DROP first to avoid "already exists" errors, then recreate
+DROP POLICY IF EXISTS "service_role_all" ON hospitals;
+DROP POLICY IF EXISTS "service_role_all" ON hospital_addresses;
+DROP POLICY IF EXISTS "service_role_all" ON hospital_administrators;
+DROP POLICY IF EXISTS "service_role_all" ON hospital_details;
+DROP POLICY IF EXISTS "service_role_all" ON hospital_documents;
+DROP POLICY IF EXISTS "service_role_all" ON hospital_integrations;
+DROP POLICY IF EXISTS "service_role_all" ON hospital_verifications;
+DROP POLICY IF EXISTS "service_role_all" ON doctors;
+DROP POLICY IF EXISTS "service_role_all" ON drivers;
+DROP POLICY IF EXISTS "service_role_all" ON ambulances;
+DROP POLICY IF EXISTS "service_role_all" ON helpers;
+DROP POLICY IF EXISTS "service_role_all" ON sos_requests;
+DROP POLICY IF EXISTS "service_role_all" ON sos_timelines;
+DROP POLICY IF EXISTS "service_role_all" ON helper_notifications;
+
+CREATE POLICY "service_role_all" ON hospitals FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "service_role_all" ON hospital_addresses FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "service_role_all" ON hospital_administrators FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "service_role_all" ON hospital_details FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "service_role_all" ON hospital_documents FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "service_role_all" ON hospital_integrations FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "service_role_all" ON hospital_verifications FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "service_role_all" ON doctors FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "service_role_all" ON drivers FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "service_role_all" ON ambulances FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "service_role_all" ON helpers FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "service_role_all" ON sos_requests FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "service_role_all" ON sos_timelines FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "service_role_all" ON helper_notifications FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 -- ─── Done ────────────────────────────────────────────────────
 SELECT 'Schema migration complete! All tables created/verified.' AS result;
+
