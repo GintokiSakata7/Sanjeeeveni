@@ -112,8 +112,17 @@ def respond_to_sos(sos_id: str, payload: SOSResponsePayload, db: Client = Depend
             raise HTTPException(status_code=404, detail="SOS request not found.")
 
         sos_request = res.data[0]
-        if sos_request["status"] not in ["PENDING", "ACCEPTED"]:
-            raise HTTPException(status_code=400, detail=f"SOS request is currently in status '{sos_request['status']}' and cannot be reassigned.")
+        current_status = sos_request["status"]
+        
+        # Idempotency: if already in the target status, just return success
+        if current_status == payload.status:
+            return {"message": f"SOS request already {payload.status}", "sos_id": sos_id}
+        
+        # Reject/REJECTED can come from PENDING or ACCEPTED states
+        # Accept can only come from PENDING (or re-accepting from ACCEPTED is allowed above)
+        terminal_statuses = ["COMPLETED", "CANCELLED", "DOCTOR_ACCEPTED", "DISPATCHED", "IN_TRANSIT", "ARRIVED"]
+        if current_status in terminal_statuses and payload.status == "PENDING":
+            raise HTTPException(status_code=400, detail=f"SOS request is currently in status '{current_status}' and cannot be reverted.")
 
         update_data = {"status": payload.status, "updated_at": datetime.utcnow().isoformat()}
         db.table("sos_requests").update(update_data).eq("id", sos_id).execute()
@@ -134,6 +143,25 @@ def respond_to_sos(sos_id: str, payload: SOSResponsePayload, db: Client = Depend
                 asyncio.run(manager.broadcast_to_sos(sos_id, {
                     "type": "STATUS_UPDATE",
                     "status": "ACCEPTED",
+                    "message": tl["message"]
+                }))
+            except Exception:
+                pass
+
+        elif payload.status == "REJECTED":
+            tl = {
+                "sos_id": sos_id,
+                "event_type": "HOSPITAL_REJECTED",
+                "actor_role": "hospital",
+                "actor_id": sos_request["hospital_id"],
+                "message": "Hospital has rejected the emergency request. Searching for another hospital.",
+                "created_at": datetime.utcnow().isoformat()
+            }
+            db.table("sos_timelines").insert(tl).execute()
+            try:
+                asyncio.run(manager.broadcast_to_sos(sos_id, {
+                    "type": "STATUS_UPDATE",
+                    "status": "REJECTED",
                     "message": tl["message"]
                 }))
             except Exception:

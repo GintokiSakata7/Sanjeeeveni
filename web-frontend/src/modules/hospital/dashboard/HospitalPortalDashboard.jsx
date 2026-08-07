@@ -64,6 +64,9 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
   // SOS Routing State
   const [incomingSOS, setIncomingSOS] = useState(null);
   const [activeSOSList, setActiveSOSList] = useState([]);
+  const [sosSubmitting, setSosSubmitting] = useState(false);
+  // Track IDs we've already accepted/rejected so the poll can't flash them back
+  const handledSOSIds = React.useRef(new Set());
 
   // Poll for incoming SOS Requests every 3 seconds
   useEffect(() => {
@@ -74,8 +77,14 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
         const resPending = await fetchWithFallback(`/api/v1/routing/pending/${hospitalId}`);
         if (resPending.ok) {
           const requests = await resPending.json();
-          if (requests && requests.length > 0) {
-            setIncomingSOS(requests[0]);
+          // Filter out any SOS we've already handled in this session
+          const unhandled = (requests || []).filter(r => !handledSOSIds.current.has(r.id));
+          if (unhandled.length > 0) {
+            setIncomingSOS(prev => {
+              // Don't reset if it's the same one (prevents flicker)
+              if (prev && prev.id === unhandled[0].id) return prev;
+              return unhandled[0];
+            });
           } else {
             setIncomingSOS(null);
           }
@@ -98,6 +107,11 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
   }, [hospitalId]);
 
   const handleRespondToSOS = async (sosId, status, driverId = null, doctorId = null) => {
+    if (sosSubmitting) return;
+    setSosSubmitting(true);
+    // Immediately lock this SOS ID so the poll won't re-show it
+    handledSOSIds.current.add(sosId);
+    setIncomingSOS(null);
     try {
       const payload = { status };
       const res = await fetchWithFallback(`/api/v1/routing/respond/${sosId}`, {
@@ -107,7 +121,6 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
       });
       if (res.ok) {
         if (status === 'ACCEPTED' && driverId) {
-           // Assign driver (driver is already allocated to an ambulance)
            await fetchWithFallback(`/api/v1/routing/assign-driver/${sosId}`, {
              method: 'POST',
              headers: { 'Content-Type': 'application/json' },
@@ -115,7 +128,6 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
            });
         }
         if (status === 'ACCEPTED' && doctorId) {
-           // Assign doctor to the case
            await fetchWithFallback(`/api/v1/routing/assign-doctor/${sosId}`, {
              method: 'POST',
              headers: { 'Content-Type': 'application/json' },
@@ -123,12 +135,18 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
            });
         }
         triggerToast(`SOS Emergency ${status}`, status === 'ACCEPTED' ? 'success' : 'error');
-        setIncomingSOS(null);
+        // Refresh doctor/driver counts so statuses update immediately
+        loadData();
       } else {
+        // On failure, remove from handled set so it can be retried
+        handledSOSIds.current.delete(sosId);
         triggerToast('Failed to respond to SOS', 'error');
       }
     } catch (err) {
+      handledSOSIds.current.delete(sosId);
       triggerToast('Network error responding to SOS', 'error');
+    } finally {
+      setSosSubmitting(false);
     }
   };
 
@@ -1188,8 +1206,9 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
       {/* SOS EMERGENCY ALERT MODAL */}
       <IncomingSOSAlert
         sosRequest={incomingSOS}
-        availableDrivers={drivers}
-        availableDoctors={doctors}
+        availableDrivers={drivers.filter(d => d.status === 'Available')}
+        availableDoctors={doctors.filter(d => d.status === 'Available')}
+        isSubmitting={sosSubmitting}
         onAccept={(id, driverId, doctorId) => handleRespondToSOS(id, 'ACCEPTED', driverId, doctorId)}
         onReject={(id) => handleRespondToSOS(id, 'REJECTED')}
       />

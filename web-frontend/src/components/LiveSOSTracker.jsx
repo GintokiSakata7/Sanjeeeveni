@@ -5,6 +5,7 @@ import { fetchWithFallback } from '../services/apiClient';
 
 const STATUS_STEPS = [
   { key: 'PENDING',         icon: '📡', label: 'SOS Signal Sent — Awaiting Hospital Response', color: 'amber' },
+  { key: 'REJECTED',        icon: '❌', label: 'Hospital Rejected — Searching for Another',     color: 'red' },
   { key: 'ACCEPTED',        icon: '✅', label: 'Hospital Accepted Emergency Case',             color: 'emerald' },
   { key: 'DOCTOR_ASSIGNED', icon: '👨‍⚕️', label: 'Doctor Assigned to Your Case',              color: 'blue' },
   { key: 'DOCTOR_ACCEPTED', icon: '🩺', label: 'Doctor Confirmed — Ready to Contact You',     color: 'cyan' },
@@ -15,6 +16,7 @@ const STATUS_STEPS = [
 const STATUS_ORDER = STATUS_STEPS.map(s => s.key);
 
 const colorMap = {
+  red:     { bg: 'rgba(239,68,68,0.15)',   border: 'rgba(239,68,68,0.5)',   text: '#fca5a5' },
   amber:   { bg: 'rgba(245,158,11,0.15)',  border: 'rgba(245,158,11,0.5)',  text: '#fde68a' },
   emerald: { bg: 'rgba(52,211,153,0.15)',  border: 'rgba(52,211,153,0.5)',  text: '#a7f3d0' },
   blue:    { bg: 'rgba(59,130,246,0.15)',  border: 'rgba(59,130,246,0.5)',  text: '#bfdbfe' },
