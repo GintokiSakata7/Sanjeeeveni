@@ -1,12 +1,7 @@
 services:
   - type: web
-
-  - type: web
-    name: sanjeevani-frontend
-    env: static
-    rootDir: web-frontend
-    buildCommand: "npm install && npm run build"
-    staticPublishPath: "dist"
-    envVars:
-      - key: VITE_BACKEND_URL
-        value: "https://sanjeeeveni.onrender.com"
+    name: webrtc-call-module
+    env: python
+    rootDir: "test moduleo/websockets"
+    buildCommand: "pip install aiohttp"
+    startCommand: "python signaling_server.py"
