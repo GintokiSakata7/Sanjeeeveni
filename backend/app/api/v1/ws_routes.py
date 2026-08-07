@@ -62,3 +62,29 @@ async def websocket_doctor_endpoint(websocket: WebSocket, doctor_id: str):
     except Exception as e:
         logger.error(f"Doctor WS Error: {e}")
         manager.disconnect_doctor(websocket, doctor_id)
+
+
+# --- Standalone WebRTC Test Module Integration ---
+test_clients = set()
+
+@router.websocket("/test")
+async def websocket_test_endpoint(websocket: WebSocket):
+    """Simple broadcast WebSocket endpoint for the standalone test module."""
+    await websocket.accept()
+    test_clients.add(websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            # Broadcast to all other connected test clients
+            for client in test_clients.copy():
+                if client != websocket:
+                    try:
+                        await client.send_text(data)
+                    except Exception:
+                        pass
+    except WebSocketDisconnect:
+        test_clients.remove(websocket)
+    except Exception as e:
+        logger.error(f"Test WS Error: {e}")
+        if websocket in test_clients:
+            test_clients.remove(websocket)

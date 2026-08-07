@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebRTC Voice Call Example</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; background-color: #0f172a; color: white; }
+        button { padding: 10px 20px; font-size: 16px; margin: 10px; cursor: pointer; border-radius: 8px; border: none; font-weight: bold; }
+        #startCall { background-color: #10b981; color: white; }
+        #endCall { background-color: #ef4444; color: white; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        #status { margin-top: 20px; font-weight: bold; color: #38bdf8; }
+    </style>
+</head>
+<body>
+    <h1>Standalone WebRTC Voice Call Test</h1>
+    <p>Open this page in two different browser tabs to test peer-to-peer audio.</p>
+    <div>
+        <button id="startCall" disabled>Start Call</button>
+        <button id="endCall" disabled>End Call</button>
+    </div>
+    <div id="status">Connecting to signaling server...</div>
+    <audio id="remoteAudio" autoplay></audio>
+
+    <script>
+        // Connect to the new /api/v1/ws/test endpoint on the FastAPI server
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/api/v1/ws/test`;
+        const ws = new WebSocket(wsUrl);
+        
+        const startCallBtn = document.getElementById('startCall');
+        const endCallBtn = document.getElementById('endCall');
+        const remoteAudio = document.getElementById('remoteAudio');
+        const statusDiv = document.getElementById('status');
+
+        let localStream;
+        let peerConnection;
+
+        // Using Google's public STUN server for ICE candidate discovery
+        const configuration = {
+            'iceServers': [{'urls': 'stun:stun.l.google.com:19302'}]
+        };
+
+        ws.onopen = () => {
+            console.log('Connected to the signaling server');
+            statusDiv.textContent = 'Connected to signaling server. Ready to call.';
+            startCallBtn.disabled = false;
+        };
+
+        ws.onclose = () => {
+            statusDiv.textContent = 'Disconnected from signaling server.';
+            startCallBtn.disabled = true;
+            endCallBtn.disabled = true;
+        };
+
+        // Handle messages from the signaling server
+        ws.onmessage = async (event) => {
+            const message = JSON.parse(event.data);
+            console.log('Received message:', message.type);
+
+            if (message.type === 'offer') {
+                statusDiv.textContent = 'Incoming call...';
+                await handleOffer(message.offer);
+            } else if (message.type === 'answer') {
+                statusDiv.textContent = 'Call answered.';
+                await handleAnswer(message.answer);
+            } else if (message.type === 'ice-candidate') {
+                await handleCandidate(message.candidate);
+            }
+        };
+
+        async function createPeerConnection() {
+            peerConnection = new RTCPeerConnection(configuration);
+
+            // Send any ice candidates to the other peer
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate) {
+                    ws.send(JSON.stringify({
+                        type: 'ice-candidate',
+                        candidate: event.candidate
+                    }));
+                }
+            };
+
+            // When a remote audio track arrives, play it in the <audio> element
+            peerConnection.ontrack = (event) => {
+                remoteAudio.srcObject = event.streams[0];
+            };
+
+            // Get local audio stream
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                localStream.getTracks().forEach(track => {
+                    peerConnection.addTrack(track, localStream);
+                });
+            } catch (error) {
+                console.error("Error accessing media devices.", error);
+                alert("Could not access microphone.");
+            }
+        }
+
+        // Caller clicks "Start Call"
+        startCallBtn.onclick = async () => {
+            startCallBtn.disabled = true;
+            endCallBtn.disabled = false;
+            statusDiv.textContent = 'Calling...';
+            
+            await createPeerConnection();
+            
+            // Create an offer and send it to the signaling server
+            const offer = await peerConnection.createOffer();
+            await peerConnection.setLocalDescription(offer);
+            
+            ws.send(JSON.stringify({
+                type: 'offer',
+                offer: offer
+            }));
+        };
+
+        // Callee receives an offer
+        async function handleOffer(offer) {
+            await createPeerConnection();
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+            
+            // Create an answer and send it back
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+            
+            ws.send(JSON.stringify({
+                type: 'answer',
+                answer: answer
+            }));
+            
+            startCallBtn.disabled = true;
+            endCallBtn.disabled = false;
+            statusDiv.textContent = 'In call';
+        }
+
+        // Caller receives the answer
+        async function handleAnswer(answer) {
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+        }
+
+        // Both peers exchange ICE candidates
+        async function handleCandidate(candidate) {
+            if (peerConnection) {
+                await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+            }
+        }
+
+        // End the call
+        endCallBtn.onclick = () => {
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+            }
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+            }
+            remoteAudio.srcObject = null;
+            startCallBtn.disabled = false;
+            endCallBtn.disabled = true;
+            statusDiv.textContent = 'Call ended.';
+        };
+    </script>
+</body>
+</html>
