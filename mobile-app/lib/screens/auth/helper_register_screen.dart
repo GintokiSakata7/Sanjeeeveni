@@ -121,32 +121,19 @@ class _HelperRegisterScreenState extends State<HelperRegisterScreen> {
 
     try {
       final api = ApiService();
-      Map<String, dynamic> response;
-      try {
-        response = await api.registerHelper(
-          name: name,
-          phone: phone,
-          password: password,
-          location: _locationController.text.trim().isNotEmpty
-              ? _locationController.text.trim()
-              : null,
-          roleType: _selectedRole,
-          certId: _certIdController.text.trim().isNotEmpty
-              ? _certIdController.text.trim()
-              : null,
-          skills: skills,
-        );
-      } catch (apiErr) {
-        // Fallback gracefully for local offline testing
-        response = {
-          'user_id': phone,
-          'user_name': name,
-          'token': 'mock-helper-token-${DateTime.now().millisecondsSinceEpoch}',
-          'contact_number': phone,
-          'location': _locationController.text.trim(),
-          'role_type': _selectedRole,
-        };
-      }
+      final response = await api.registerHelper(
+        name: name,
+        phone: phone,
+        password: password,
+        location: _locationController.text.trim().isNotEmpty
+            ? _locationController.text.trim()
+            : null,
+        roleType: _selectedRole,
+        certId: _certIdController.text.trim().isNotEmpty
+            ? _certIdController.text.trim()
+            : null,
+        skills: skills,
+      );
 
       final prefs = PreferencesService();
       prefs.setHelperLiveLocation(true);
@@ -179,6 +166,8 @@ class _HelperRegisterScreenState extends State<HelperRegisterScreen> {
           SnackBar(
             content: Text(e.message),
             backgroundColor: const Color(0xFFDC2626),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 4),
           ),
         );
       }
@@ -187,8 +176,10 @@ class _HelperRegisterScreenState extends State<HelperRegisterScreen> {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Registration completed with offline fallback ($e)'),
-            backgroundColor: const Color(0xFF10B981),
+            content: Text('Cannot connect to database backend: $e'),
+            backgroundColor: const Color(0xFFDC2626),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 4),
           ),
         );
       }

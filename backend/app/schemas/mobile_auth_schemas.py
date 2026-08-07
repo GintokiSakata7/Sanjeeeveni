@@ -23,6 +23,8 @@ class HelperRegisterRequest(BaseModel):
     role_type: str = Field(default="ASHA Community Health Worker")
     cert_id: Optional[str] = None
     skills: List[str] = Field(default=[])
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
 
 class HelperLoginRequest(BaseModel):

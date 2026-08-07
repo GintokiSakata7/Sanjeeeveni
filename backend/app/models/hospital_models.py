@@ -219,6 +219,8 @@ class Helper(SQLModel, table=True):
     phone: str = Field(unique=True, index=True)
     password_hash: str
     location: Optional[str] = Field(default=None)
+    latitude: Optional[float] = Field(default=None)
+    longitude: Optional[float] = Field(default=None)
     role_type: str = Field(default="ASHA Community Health Worker")
     cert_id: Optional[str] = Field(default=None)
     skills: List[str] = Field(default=[], sa_column=Column(JSON))

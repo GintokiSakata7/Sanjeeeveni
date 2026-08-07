@@ -147,31 +147,21 @@ class _UnifiedLoginScreenState extends State<UnifiedLoginScreen> {
           break;
 
         case UserRole.helper:
-          try {
-            response = await api.loginHelper(
-              phone: identifier,
-              password: password,
-            );
-          } catch (_) {
-            // Fallback for offline / mock testing
-            response = {
-              'user_id': identifier,
-              'user_name': 'Anjali Devi (ASHA Worker)',
-              'location': 'Banjara Hills Sector 4, Hyderabad',
-              'token': 'mock-helper-token',
-            };
-          }
+          response = await api.loginHelper(
+            phone: identifier,
+            password: password,
+          );
           await prefs.login(
             role: 'helper',
             userId: response['user_id'] ?? identifier,
-            userName: response['user_name'] ?? 'Anjali Devi (ASHA Worker)',
+            userName: response['user_name'] ?? 'Helper',
             token: response['token'] ?? '',
             contactNumber: response['contact_number'] ?? identifier,
-            location: response['location'] ?? 'Banjara Hills Sector 4, Hyderabad',
+            location: response['location'] ?? '',
             roleType: response['role_type'] ?? 'ASHA Community Health Worker',
           );
           destination = HelperDashboardScreen(
-            helperName: response['user_name'] ?? 'Anjali Devi (ASHA Worker)',
+            helperName: response['user_name'] ?? 'Helper',
             helperLocation: response['location'] ?? 'Banjara Hills Sector 4, Hyderabad',
           );
           break;
