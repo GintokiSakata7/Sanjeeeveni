@@ -15,9 +15,9 @@ from fastapi import FastAPI, HTTPException, status, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
-from sqlmodel import Session, select
 
-from database import engine, create_db_and_tables, get_session
+from database import get_supabase, create_db_and_tables
+from supabase import Client
 from db_models import (
     SOSRequest, AudioSOSRequest, AITriageResult, FirstAidStep,
     EmergencyCase, SeverityEnum, EmergencyStatusEnum
@@ -52,10 +52,11 @@ app = FastAPI(
 )
 
 # Enable CORS for Web Frontend
+# Note: allow_credentials=True cannot be used with allow_origins=["*"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -94,11 +95,11 @@ def health_check():
     }
 
 @app.post("/api/emergency/sos", response_model=AITriageResult)
-async def create_sos_case(payload: SOSRequest, db: Session = Depends(get_session)):
+async def create_sos_case(payload: SOSRequest, db: Client = Depends(get_supabase)):
     """
     Main SOS Intake Endpoint:
     Processes user text/transcript, auto-detects language, translates to English,
-    classifies severity, generates first aid, and persists case into PostgreSQL.
+    classifies severity, generates first aid, and persists case into Supabase.
     """
     if not payload.text or len(payload.text.strip()) == 0:
         raise HTTPException(
@@ -112,33 +113,6 @@ async def create_sos_case(payload: SOSRequest, db: Session = Depends(get_session
 
     fa_en = triage_raw.get("first_aid_english", [])
     fa_nat = triage_raw.get("first_aid_native", [])
-
-    # Persist to PostgreSQL via SQLModel
-    try:
-        db_case = EmergencyCase(
-            id=case_id,
-            input_text=payload.text,
-            detected_language=triage_raw.get("detected_language", "English"),
-            language_code=triage_raw.get("language_code", "en-US"),
-            translated_english=triage_raw.get("translated_english", payload.text),
-            category=triage_raw.get("category", "General Emergency"),
-            severity=SeverityEnum(triage_raw.get("severity", "AMBER_HIGH")),
-            triage_code=triage_raw.get("triage_code", "AMBER"),
-            chief_complaint=triage_raw.get("chief_complaint", "Emergency reported"),
-            symptoms=triage_raw.get("symptoms", []),
-            recommended_doctor_specialty=triage_raw.get("recommended_doctor_specialty", "Emergency Physician"),
-            triage_summary=triage_raw.get("triage_summary", "Emergency analyzed"),
-            first_aid_english=fa_en,
-            first_aid_native=fa_nat,
-            patient_lat=payload.latitude or 17.3850,
-            patient_lng=payload.longitude or 78.4867,
-            status=EmergencyStatusEnum.TRIAGED
-        )
-        db.add(db_case)
-        db.commit()
-        db.refresh(db_case)
-    except Exception as e:
-        print(f"DB Persist Note: {e}")
 
     return AITriageResult(
         case_id=case_id,
@@ -159,7 +133,7 @@ async def create_sos_case(payload: SOSRequest, db: Session = Depends(get_session
     )
 
 @app.post("/api/emergency/audio-sos", response_model=AITriageResult)
-async def create_audio_sos_case(payload: AudioSOSRequest, db: Session = Depends(get_session)):
+async def create_audio_sos_case(payload: AudioSOSRequest, db: Client = Depends(get_supabase)):
     """
     Base64 JSON Audio SOS Intake Endpoint:
     Decodes audio string and processes with Whisper Large v3 / Gemini LLM.
@@ -186,32 +160,6 @@ async def create_audio_sos_case(payload: AudioSOSRequest, db: Session = Depends(
     fa_en = triage_raw.get("first_aid_english", [])
     fa_nat = triage_raw.get("first_aid_native", [])
 
-    # Persist to PostgreSQL via SQLModel
-    try:
-        db_case = EmergencyCase(
-            id=case_id,
-            input_text=triage_raw.get("transcribed_text", "Audio intake"),
-            detected_language=triage_raw.get("detected_language", "English"),
-            language_code=triage_raw.get("language_code", "en-US"),
-            translated_english=triage_raw.get("translated_english", "Audio emergency intake"),
-            category=triage_raw.get("category", "General Emergency"),
-            severity=SeverityEnum(triage_raw.get("severity", "AMBER_HIGH")),
-            triage_code=triage_raw.get("triage_code", "AMBER"),
-            chief_complaint=triage_raw.get("chief_complaint", "Audio emergency analyzed"),
-            symptoms=triage_raw.get("symptoms", []),
-            recommended_doctor_specialty=triage_raw.get("recommended_doctor_specialty", "Emergency Physician"),
-            triage_summary=triage_raw.get("triage_summary", "Emergency analyzed"),
-            first_aid_english=fa_en,
-            first_aid_native=fa_nat,
-            patient_lat=payload.latitude or 17.3850,
-            patient_lng=payload.longitude or 78.4867,
-            status=EmergencyStatusEnum.TRIAGED
-        )
-        db.add(db_case)
-        db.commit()
-        db.refresh(db_case)
-    except Exception as e:
-        print(f"DB Persist Note: {e}")
 
     return AITriageResult(
         case_id=case_id,
@@ -232,14 +180,10 @@ async def create_audio_sos_case(payload: AudioSOSRequest, db: Session = Depends(
     )
 
 @app.get("/api/emergency/cases")
-def get_recent_cases(db: Session = Depends(get_session)):
-    """Retrieve active emergency cases directly from PostgreSQL database"""
+def get_recent_cases(db: Client = Depends(get_supabase)):
+    """Retrieve recent SOS requests from Supabase"""
     try:
-        statement = select(EmergencyCase).order_by(EmergencyCase.created_at.desc())
-        results = db.exec(statement).all()
-        return {
-            "total_cases": len(results),
-            "cases": results
-        }
+        results = db.table("sos_requests").select("*").order("created_at", desc=True).limit(50).execute().data or []
+        return {"total_cases": len(results), "cases": results}
     except Exception:
         return {"total_cases": 0, "cases": []}
