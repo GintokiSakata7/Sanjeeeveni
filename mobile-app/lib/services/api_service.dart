@@ -70,7 +70,7 @@ class ApiService {
         }
         throw ApiException(errorMsg, response.statusCode);
       } on ApiException {
-        // HTTP response received from server (e.g. 401 Unauthorized), host is valid!
+        // HTTP response received (e.g. 401 Unauthorized), so target URL is valid!
         _workingBaseUrl = base;
         rethrow;
       } on TimeoutException catch (e) {
@@ -139,6 +139,8 @@ class ApiService {
     String roleType = 'ASHA Community Health Worker',
     String? certId,
     List<String> skills = const [],
+    double latitude = 17.3850,
+    double longitude = 78.4867,
   }) async {
     return _post('/api/v1/mobile/register/helper', {
       'name': name,
@@ -148,6 +150,8 @@ class ApiService {
       'role_type': roleType,
       'cert_id': certId,
       'skills': skills,
+      'latitude': latitude,
+      'longitude': longitude,
     });
   }
 
