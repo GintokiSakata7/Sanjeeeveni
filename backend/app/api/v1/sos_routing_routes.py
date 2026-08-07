@@ -5,7 +5,8 @@ from pydantic import BaseModel
 import uuid
 from datetime import datetime
 
-from database import get_session
+from database import get_supabase
+from supabase import Client
 from app.models.hospital_models import SOSRequest, Doctor, Driver, Ambulance, SOSTimeline, Helper, HelperNotification
 import math
 
@@ -38,101 +39,102 @@ class TimelinePayload(BaseModel):
     metadata: Optional[dict] = {}
 
 @router.post("/send", status_code=status.HTTP_201_CREATED)
-def send_sos_to_hospital(payload: SOSSendPayload, db: Session = Depends(get_session)):
+def send_sos_to_hospital(payload: SOSSendPayload, db: Client = Depends(get_supabase)):
     """Called by the Citizen Frontend when the radar discovers a hospital."""
     sos_id = f"SOS-{uuid.uuid4().hex[:8].upper()}"
-    sos_request = SOSRequest(
-        id=sos_id,
-        hospital_id=payload.hospital_id,
-        citizen_lat=payload.citizen_lat,
-        citizen_lng=payload.citizen_lng,
-        transcript=payload.transcript,
-        triage_urgency=payload.triage_urgency,
-        image_url=payload.image_url,
-        status="PENDING"
-    )
-    db.add(sos_request)
-    db.commit()
-    db.refresh(sos_request)
-    return {"sos_id": sos_request.id, "message": "SOS request routed to hospital."}
+    now_iso = datetime.utcnow().isoformat()
+    sos_request = {
+        "id": sos_id,
+        "hospital_id": payload.hospital_id,
+        "citizen_lat": payload.citizen_lat,
+        "citizen_lng": payload.citizen_lng,
+        "transcript": payload.transcript,
+        "triage_urgency": payload.triage_urgency,
+        "image_url": payload.image_url,
+        "status": "PENDING",
+        "created_at": now_iso,
+        "updated_at": now_iso
+    }
+    db.table("sos_requests").insert(sos_request).execute()
+    return {"sos_id": sos_id, "message": "SOS request routed to hospital."}
 
 @router.get("/pending/{hospital_id}")
-def get_pending_sos_requests(hospital_id: str, db: Session = Depends(get_session)):
+def get_pending_sos_requests(hospital_id: str, db: Client = Depends(get_supabase)):
     """Called by the Hospital Dashboard to check for incoming emergencies."""
-    requests = db.exec(
-        select(SOSRequest)
-        .where(SOSRequest.hospital_id == hospital_id)
-        .where(SOSRequest.status == "PENDING")
-        .order_by(SOSRequest.created_at.desc())
-    ).all()
-    return requests
+    res = db.table("sos_requests").select("*").eq("hospital_id", hospital_id).eq("status", "PENDING").order("created_at", desc=True).execute()
+    return res.data
 
 @router.post("/respond/{sos_id}")
-def respond_to_sos(sos_id: str, payload: SOSResponsePayload, db: Session = Depends(get_session)):
+def respond_to_sos(sos_id: str, payload: SOSResponsePayload, db: Client = Depends(get_supabase)):
     """Called by the Hospital Dashboard to accept/reject an SOS."""
-    sos_request = db.exec(select(SOSRequest).where(SOSRequest.id == sos_id)).first()
-    if not sos_request:
+    res = db.table("sos_requests").select("*").eq("id", sos_id).execute()
+    if not res.data:
         raise HTTPException(status_code=404, detail="SOS request not found.")
     
-    if sos_request.status not in ["PENDING", "ACCEPTED"]:
-        raise HTTPException(status_code=400, detail=f"SOS request is currently in status '{sos_request.status}' and cannot be reassigned.")
+    sos_request = res.data[0]
+    if sos_request["status"] not in ["PENDING", "ACCEPTED"]:
+        raise HTTPException(status_code=400, detail=f"SOS request is currently in status '{sos_request['status']}' and cannot be reassigned.")
 
-    sos_request.status = payload.status
-    sos_request.updated_at = datetime.utcnow()
-
-    db.add(sos_request)
-    db.commit()
-    db.refresh(sos_request)
+    update_data = {
+        "status": payload.status,
+        "updated_at": datetime.utcnow().isoformat()
+    }
+    db.table("sos_requests").update(update_data).eq("id", sos_id).execute()
 
     # Add to timeline
     if payload.status == "ACCEPTED":
-        tl = SOSTimeline(
-            sos_id=sos_id,
-            event_type="HOSPITAL_ACCEPTED",
-            actor_role="hospital",
-            actor_id=sos_request.hospital_id,
-            message=f"Hospital has ACCEPTED the emergency request."
-        )
-        db.add(tl)
-        db.commit()
+        tl = {
+            "sos_id": sos_id,
+            "event_type": "HOSPITAL_ACCEPTED",
+            "actor_role": "hospital",
+            "actor_id": sos_request["hospital_id"],
+            "message": f"Hospital has ACCEPTED the emergency request.",
+            "created_at": datetime.utcnow().isoformat()
+        }
+        db.table("sos_timelines").insert(tl).execute()
 
-    return {"message": f"SOS request {payload.status}", "sos": sos_request}
+    return {"message": f"SOS request {payload.status}", "sos_id": sos_id}
 
 @router.post("/assign-driver/{sos_id}")
-def assign_driver(sos_id: str, payload: AssignDriverPayload, db: Session = Depends(get_session)):
-    sos = db.exec(select(SOSRequest).where(SOSRequest.id == sos_id)).first()
-    if not sos:
+def assign_driver(sos_id: str, payload: AssignDriverPayload, db: Client = Depends(get_supabase)):
+    res = db.table("sos_requests").select("*").eq("id", sos_id).execute()
+    if not res.data:
         raise HTTPException(status_code=404, detail="SOS not found")
+    sos = res.data[0]
 
-    driver = db.exec(select(Driver).where(Driver.id == payload.driver_id)).first()
-    ambulance = db.exec(select(Ambulance).where(Ambulance.id == payload.ambulance_id)).first()
+    d_res = db.table("drivers").select("*").eq("id", payload.driver_id).execute()
+    driver = d_res.data[0] if d_res.data else None
+
+    a_res = db.table("ambulances").select("*").eq("id", payload.ambulance_id).execute()
+    ambulance = a_res.data[0] if a_res.data else None
 
     if not driver or not ambulance:
         raise HTTPException(status_code=404, detail="Driver or Ambulance not found")
 
-    sos.assigned_driver_id = driver.id
-    sos.assigned_driver_name = driver.name
-    sos.assigned_ambulance_id = ambulance.id
-    sos.assigned_ambulance_reg = ambulance.vehicle_registration
-    sos.driver_status = "ASSIGNED"
-    sos.updated_at = datetime.utcnow()
+    update_data = {
+        "assigned_driver_id": driver["id"],
+        "assigned_driver_name": driver.get("name", "Unknown"),
+        "assigned_ambulance_id": ambulance["id"],
+        "assigned_ambulance_reg": ambulance.get("vehicle_registration", "Unknown"),
+        "driver_status": "ASSIGNED",
+        "updated_at": datetime.utcnow().isoformat()
+    }
 
-    db.add(sos)
+    db.table("sos_requests").update(update_data).eq("id", sos_id).execute()
 
-    tl = SOSTimeline(
-        sos_id=sos.id,
-        event_type="DRIVER_ASSIGNED",
-        actor_role="hospital",
-        message=f"Ambulance {ambulance.vehicle_registration} with Driver {driver.name} assigned."
-    )
-    db.add(tl)
-    db.commit()
-    db.refresh(sos)
+    tl = {
+        "sos_id": sos_id,
+        "event_type": "DRIVER_ASSIGNED",
+        "actor_role": "hospital",
+        "message": f"Ambulance {ambulance.get('vehicle_registration')} with Driver {driver.get('name')} assigned.",
+        "created_at": datetime.utcnow().isoformat()
+    }
+    db.table("sos_timelines").insert(tl).execute()
 
-    return {"message": "Driver assigned successfully", "sos": sos}
+    return {"message": "Driver assigned successfully", "sos_id": sos_id}
 
 @router.post("/assign-doctor/{sos_id}")
-def assign_doctor(sos_id: str, payload: AssignDoctorPayload, db: Session = Depends(get_session)):
+def assign_doctor(sos_id: str, payload: AssignDoctorPayload, db: Client = Depends(get_supabase)):
     sos = db.exec(select(SOSRequest).where(SOSRequest.id == sos_id)).first()
     if not sos:
         raise HTTPException(status_code=404, detail="SOS not found")
@@ -163,7 +165,7 @@ def assign_doctor(sos_id: str, payload: AssignDoctorPayload, db: Session = Depen
     return {"message": "Doctor assigned successfully", "sos": sos}
 
 @router.post("/driver-accept/{sos_id}")
-def driver_accept_sos(sos_id: str, db: Session = Depends(get_session)):
+def driver_accept_sos(sos_id: str, db: Client = Depends(get_supabase)):
     sos = db.exec(select(SOSRequest).where(SOSRequest.id == sos_id)).first()
     if not sos:
         raise HTTPException(status_code=404, detail="SOS not found")
@@ -187,7 +189,7 @@ def driver_accept_sos(sos_id: str, db: Session = Depends(get_session)):
     return {"message": "Driver accepted mission", "sos": sos}
 
 @router.get("/timeline/{sos_id}")
-def get_sos_timeline(sos_id: str, db: Session = Depends(get_session)):
+def get_sos_timeline(sos_id: str, db: Client = Depends(get_supabase)):
     timeline = db.exec(
         select(SOSTimeline)
         .where(SOSTimeline.sos_id == sos_id)
@@ -196,7 +198,7 @@ def get_sos_timeline(sos_id: str, db: Session = Depends(get_session)):
     return timeline
 
 @router.post("/timeline/{sos_id}")
-def add_timeline_event(sos_id: str, payload: TimelinePayload, db: Session = Depends(get_session)):
+def add_timeline_event(sos_id: str, payload: TimelinePayload, db: Client = Depends(get_supabase)):
     tl = SOSTimeline(
         sos_id=sos_id,
         event_type=payload.event_type,
@@ -221,7 +223,7 @@ def haversine(lat1, lon1, lat2, lon2):
     return R * c
 
 @router.post("/notify-helpers/{sos_id}")
-def notify_nearby_helpers(sos_id: str, db: Session = Depends(get_session)):
+def notify_nearby_helpers(sos_id: str, db: Client = Depends(get_supabase)):
     sos = db.exec(select(SOSRequest).where(SOSRequest.id == sos_id)).first()
     if not sos:
         raise HTTPException(status_code=404, detail="SOS not found")
@@ -255,16 +257,18 @@ def notify_nearby_helpers(sos_id: str, db: Session = Depends(get_session)):
     return {"message": f"Notified {notified_count} nearby helpers"}
 
 @router.get("/status/{sos_id}")
-def check_sos_status(sos_id: str, db: Session = Depends(get_session)):
+def check_sos_status(sos_id: str, db: Client = Depends(get_supabase)):
     """Called by the Citizen Frontend to poll for hospital response."""
-    sos_request = db.exec(select(SOSRequest).where(SOSRequest.id == sos_id)).first()
-    if not sos_request:
+    res = db.table("sos_requests").select("*").eq("id", sos_id).execute()
+    if not res.data:
         raise HTTPException(status_code=404, detail="SOS request not found.")
     
+    sos_request = res.data[0]
+    
     return {
-        "sos_id": sos_request.id,
-        "status": sos_request.status,
-        "assigned_driver_name": sos_request.assigned_driver_name,
-        "assigned_ambulance_reg": sos_request.assigned_ambulance_reg,
-        "driver_status": sos_request.driver_status
+        "sos_id": sos_request["id"],
+        "status": sos_request["status"],
+        "assigned_driver_name": sos_request.get("assigned_driver_name"),
+        "assigned_ambulance_reg": sos_request.get("assigned_ambulance_reg"),
+        "driver_status": sos_request.get("driver_status")
     }

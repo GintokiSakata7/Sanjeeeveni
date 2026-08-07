@@ -1,84 +1,38 @@
 """
-Sanjeevani (AERO) SQLModel Database Engine Configuration
-Connects natively to PostgreSQL / Supabase with automatic SQLite local fallback.
+Sanjeevani (AERO) Supabase REST API Client Configuration
+Exposes both SQLModel (local SQLite fallback) and Supabase REST Client for migration.
 """
 
 import os
 from dotenv import load_dotenv
+from supabase import create_client, Client
 from sqlmodel import SQLModel, create_engine, Session
-from sqlalchemy import text
-from app.models.hospital_models import *  # Ensure all models are loaded
-
 
 load_dotenv()
 
-# Get PostgreSQL Connection String from .env
-raw_db_url = os.getenv("DATABASE_URL", "")
+# Get Supabase URL and Key from .env (or environment variables)
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-if raw_db_url.startswith("postgres://"):
-    raw_db_url = raw_db_url.replace("postgres://", "postgresql://", 1)
+if SUPABASE_URL and SUPABASE_KEY:
+    supabase_client = create_client(SUPABASE_URL, SUPABASE_KEY)
+    print("Successfully initialized Supabase REST Client!")
+else:
+    supabase_client = None
+    print("WARNING: Supabase keys not set.")
 
-def build_engine():
-    """Builds SQLModel engine for PostgreSQL/Supabase with automatic permanent SQLite fallback"""
-    if not raw_db_url:
-        print("DATABASE_URL not set - using permanent local SQLite database (sanjeevani.db)")
-        return create_engine("sqlite:///sanjeevani.db", echo=False, connect_args={"check_same_thread": False})
-    
-    pg_engine = create_engine(
-        raw_db_url,
-        echo=False,
-        pool_pre_ping=True,
-        connect_args={"connect_timeout": 10}
-    )
-    print("Successfully initialized Supabase PostgreSQL engine!")
-    return pg_engine
+def get_supabase() -> Client:
+    """Dependency for Supabase REST Client"""
+    return supabase_client
 
-engine = build_engine()
+# Keep SQLModel engine as local SQLite fallback for routes not yet migrated
+engine = create_engine("sqlite:///sanjeevani.db", echo=False, connect_args={"check_same_thread": False})
 
 def create_db_and_tables():
-    """Initializes all SQLModel database tables & ensures missing columns exist"""
-    try:
-        SQLModel.metadata.create_all(engine)
-        print("SQLModel tables verified & initialized.")
-    except Exception as e:
-        print(f"SQLModel table init note: {e}")
-
-    # Only run PostgreSQL-specific ALTER TABLE migrations if using PostgreSQL
-    if engine.dialect.name == "postgresql":
-        alter_statements = [
-            "ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS hospital_type VARCHAR(50) DEFAULT 'SMALL';",
-            "ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS category VARCHAR(50) DEFAULT 'CHC';",
-            "ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS registration_number VARCHAR(100);",
-            "ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS license_number VARCHAR(100);",
-            "ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS has_nabh_accreditation BOOLEAN DEFAULT FALSE;",
-            "ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS nabh_number VARCHAR(100);",
-            "ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS gst_number VARCHAR(50);",
-            "ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'PENDING_VERIFICATION';",
-            "ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS latitude FLOAT;",
-            "ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS longitude FLOAT;",
-            "ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;",
-            "ALTER TABLE doctors ADD COLUMN IF NOT EXISTS shift_timing VARCHAR(255) DEFAULT 'Morning Shift (08:00 AM - 04:00 PM)';",
-            "ALTER TABLE doctors ADD COLUMN IF NOT EXISTS name VARCHAR(255);",
-            "ALTER TABLE drivers ADD COLUMN IF NOT EXISTS shift_timing VARCHAR(255) DEFAULT 'Morning Shift (08:00 AM - 04:00 PM)';",
-            "ALTER TABLE drivers ADD COLUMN IF NOT EXISTS name VARCHAR(255);",
-            "ALTER TABLE ambulances ADD COLUMN IF NOT EXISTS assigned_driver_name VARCHAR(255);",
-            "ALTER TABLE ambulances ADD COLUMN IF NOT EXISTS vehicle_type VARCHAR(255) DEFAULT 'Basic';",
-            "ALTER TABLE helpers ADD COLUMN IF NOT EXISTS latitude FLOAT;",
-            "ALTER TABLE helpers ADD COLUMN IF NOT EXISTS longitude FLOAT;",
-            "ALTER TABLE helpers ADD COLUMN IF NOT EXISTS location VARCHAR(255);",
-            "ALTER TABLE helpers ADD COLUMN IF NOT EXISTS role_type VARCHAR(100) DEFAULT 'ASHA Community Health Worker';",
-            "ALTER TABLE helpers ADD COLUMN IF NOT EXISTS cert_id VARCHAR(100);",
-            "ALTER TABLE helpers ADD COLUMN IF NOT EXISTS skills JSON DEFAULT '[]';",
-            "ALTER TABLE helpers ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;"
-        ]
-        for stmt in alter_statements:
-            try:
-                with engine.begin() as conn:
-                    conn.execute(text(stmt))
-            except Exception:
-                pass
+    SQLModel.metadata.create_all(engine)
 
 def get_session():
-    """FastAPI Dependency for database sessions"""
+    """FastAPI Dependency. Returns local SQLite session."""
     with Session(engine) as session:
         yield session
+

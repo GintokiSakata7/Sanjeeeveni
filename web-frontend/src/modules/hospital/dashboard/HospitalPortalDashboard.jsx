@@ -55,6 +55,10 @@ export default function HospitalPortalDashboard({ hospitalSession, onLogout, onB
   const [ambulances, setAmbulances] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Password visibility states
+  const [showDoctorPwd, setShowDoctorPwd] = useState(false);
+  const [showDriverPwd, setShowDriverPwd] = useState(false);
 
   // SOS Routing State
   const [incomingSOS, setIncomingSOS] = useState(null);

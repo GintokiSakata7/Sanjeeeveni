@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status
-from sqlmodel import Session
-from database import get_session
+from supabase import Client
+from database import get_supabase
 from app.schemas.hospital_schemas import (
     HospitalRegistrationCreate, HospitalLoginRequest, TokenResponse,
     HospitalProfileResponse
@@ -13,7 +13,7 @@ router = APIRouter(prefix="/hospital", tags=["Hospital Management"])
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 def register_hospital(
     payload: HospitalRegistrationCreate,
-    db: Session = Depends(get_session)
+    db: Client = Depends(get_supabase)
 ):
     """
     Submits a complete 7-step Hospital Registration workflow.
@@ -25,7 +25,7 @@ def register_hospital(
 @router.post("/login", response_model=TokenResponse)
 def login_hospital(
     credentials: HospitalLoginRequest,
-    db: Session = Depends(get_session)
+    db: Client = Depends(get_supabase)
 ):
     """
     Authenticates a Hospital Administrator using email and password.
@@ -62,7 +62,7 @@ async def upload_verification_document(
 @router.get("/verification-status/{hospital_id}")
 def check_verification_status(
     hospital_id: str,
-    db: Session = Depends(get_session)
+    db: Client = Depends(get_supabase)
 ):
     """Public endpoint to check the verification status of a registered hospital"""
     service = HospitalService(db)
@@ -78,31 +78,34 @@ def check_verification_status(
 @router.get("/profile/{hospital_id}")
 def get_hospital_profile(
     hospital_id: str,
-    db: Session = Depends(get_session)
+    db: Client = Depends(get_supabase)
 ):
     """Retrieves complete profile details for a hospital"""
     service = HospitalService(db)
     return service.get_hospital_profile(hospital_id)
 
 @router.get("/all")
-def get_all_hospitals(db: Session = Depends(get_session)):
+def get_all_hospitals(db: Client = Depends(get_supabase)):
     """Retrieves all hospitals with their location data for the radar."""
-    from app.models.hospital_models import Hospital, HospitalAddress
-    from sqlmodel import select
+    # Using Supabase REST API, we can't do a native join easily across multiple tables without foreign keys setup in a specific way,
+    # but we can fetch hospitals and addresses separately.
     
-    # We join Hospital with HospitalAddress to get the coordinates
-    query = select(Hospital, HospitalAddress).join(HospitalAddress, isouter=True)
-    results = db.exec(query).all()
+    hospitals_res = db.table("hospitals").select("*").execute()
+    addresses_res = db.table("hospital_addresses").select("*").execute()
     
-    hospitals = []
-    for h, addr in results:
-        hospitals.append({
-            "id": h.id,
-            "name": h.name,
-            "category": h.category,
-            "status": h.status,
-            "latitude": addr.latitude if addr else None,
-            "longitude": addr.longitude if addr else None,
-            "complete_address": addr.complete_address if addr else None
+    hospitals = hospitals_res.data if hospitals_res.data else []
+    addresses = {addr["hospital_id"]: addr for addr in (addresses_res.data if addresses_res.data else [])}
+    
+    results = []
+    for h in hospitals:
+        addr = addresses.get(h["id"])
+        results.append({
+            "id": h["id"],
+            "name": h["name"],
+            "category": h["category"],
+            "status": h["status"],
+            "latitude": h["latitude"] or (addr["latitude"] if addr else None),
+            "longitude": h["longitude"] or (addr["longitude"] if addr else None),
+            "complete_address": addr["complete_address"] if addr else None
         })
-    return hospitals
+    return results

@@ -1,5 +1,5 @@
 from fastapi import HTTPException, status
-from sqlmodel import Session
+from supabase import Client
 from app.repositories.hospital_repository import HospitalRepository
 from app.schemas.hospital_schemas import (
     HospitalRegistrationCreate, HospitalLoginRequest, TokenResponse
@@ -7,7 +7,7 @@ from app.schemas.hospital_schemas import (
 from app.auth.security import verify_password, create_access_token
 
 class HospitalService:
-    def __init__(self, session: Session):
+    def __init__(self, session: Client):
         self.repo = HospitalRepository(session)
 
     def register_hospital(self, payload: HospitalRegistrationCreate) -> dict:
@@ -32,20 +32,20 @@ class HospitalService:
         return {
             "success": True,
             "message": "Hospital registration submitted successfully! Your account is currently PENDING_VERIFICATION.",
-            "hospital_id": hospital.id,
-            "status": hospital.status,
-            "hospital_name": hospital.name
+            "hospital_id": hospital.get("id"),
+            "status": hospital.get("status"),
+            "hospital_name": hospital.get("name")
         }
 
     def authenticate_hospital(self, credentials: HospitalLoginRequest) -> TokenResponse:
         admin = self.repo.get_administrator_by_email(credentials.email)
-        if not admin or not verify_password(credentials.password, admin.password_hash):
+        if not admin or not verify_password(credentials.password, admin.get("password_hash")):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid administrator email or password."
             )
 
-        hospital = self.repo.get_by_id(admin.hospital_id)
+        hospital = self.repo.get_by_id(admin.get("hospital_id"))
         if not hospital:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -53,21 +53,21 @@ class HospitalService:
             )
 
         token_data = {
-            "sub": admin.id,
-            "hospital_id": hospital.id,
-            "email": admin.email,
-            "role": admin.role
+            "sub": admin.get("id"),
+            "hospital_id": hospital.get("id"),
+            "email": admin.get("email"),
+            "role": "ADMIN" # Fallback role
         }
         access_token = create_access_token(data=token_data)
 
         return TokenResponse(
             access_token=access_token,
             token_type="bearer",
-            hospital_id=hospital.id,
-            hospital_name=hospital.name,
-            admin_name=admin.name,
-            status=hospital.status,
-            hospital_type=hospital.hospital_type
+            hospital_id=hospital.get("id"),
+            hospital_name=hospital.get("name"),
+            admin_name=admin.get("name"),
+            status=hospital.get("status"),
+            hospital_type=hospital.get("hospital_type")
         )
 
     def get_hospital_profile(self, hospital_id: str) -> dict:
